@@ -398,16 +398,16 @@ class Coincident:
 
         total = np.logical_and.reduce(truth_series)
         new_det = detectors.Detector(0, 0, 0, total_name)
-        new_det.data = self.data.loc[total]
+        new_det.data = self.data.loc[total][columns]
         return new_det
 
     def __getitem__(self, key):
-        """We want to be able to call columns by tuples:
-        Coincident[(det_name, axis)] or
-        [[(det_name1, axis1), (det_name2, axis2), (det_name2, axis2)]]
-        -> i.e a list of tuples
+        """I want to be able to select detectors based on Coincidence[det]
+        like syntax. These get items will return detector objects.
         """
         # return a new instance of Coincidence
         if isinstance(key, tuple):
             return self.create_intersection(*key)
-        return self.data[self._get_detector_columns(key)]
+        if isinstance(key, slice):
+            return self.data[key]
+        return self.create_intersection(key)
