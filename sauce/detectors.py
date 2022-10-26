@@ -153,6 +153,9 @@ class Detector:
         else:
             return counts, bin_edges
 
+    def __getitem__(self, key):
+        return self.data[key]
+
 
 class DSSD(Detector):
     def __init__(self, map_filename, side, map_seperator="\s+"):
