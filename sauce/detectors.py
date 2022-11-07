@@ -156,6 +156,11 @@ class Detector:
     def __getitem__(self, key):
         return self.data[key]
 
+    def copy(self):
+        new_det = Detector(self.crate, self.slot, self.channel, self.name)
+        new_det.data = self.data.copy(deep=True)
+        return new_det
+
 
 class DSSD(Detector):
     def __init__(self, map_filename, side, map_seperator="\s+"):
@@ -178,6 +183,12 @@ class DSSD(Detector):
                     row["crate"], row["slot"], row["channel"], det_name
                 )
 
+        # these are mostly unnecessary except for compatibility
+        # with other things that expect normal detector fields.
+        self.crate = 0
+        self.slot = 0
+        self.channel = 0
+
     def find_events(self, full_run_data):
 
         print("Finding " + self.name + " events")
@@ -196,3 +207,18 @@ class DSSD(Detector):
         self.data = pd.concat(frame, ignore_index=True).sort_values(
             by="time_raw"
         )
+
+
+def detector_union(name, *dets, by="time_raw"):
+    """Union different detectors if into a
+    new detector called "name"
+
+    :param name: string, new detector name
+    :returns: Detector object
+
+    """
+    frame = [d.data for d in dets]
+    new_det = Detector(0, 0, 0, name)
+    new_det.data = pd.concat(frame, ignore_index=True).sort_values(by=by)
+
+    return new_det
