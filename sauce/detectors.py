@@ -9,6 +9,7 @@ import pandas as pd
 import tables as tb
 from matplotlib.path import Path
 from .run_handling import Run
+from .run_handling import global_event_sort
 
 
 def smap(f, *args):
@@ -153,13 +154,43 @@ class Detector:
         else:
             return counts, bin_edges
 
-    def __getitem__(self, key):
-        return self.data[key]
+    def __getitem__(self, item):
+        return self.data.__getitem__(item)
 
     def copy(self):
+        """Copy data from detector into new detector instance.
+
+        :returns: Copied instance of detector
+
+        """
         new_det = Detector(self.crate, self.slot, self.channel, self.name)
         new_det.data = self.data.copy(deep=True)
         return new_det
+
+    def tag(self, tag, tag_name="tag"):
+        """Create a tag column in the dataframe.
+        Examples could be run number, a simple index, or
+        any other desired information.
+
+        :param tag:
+        :param tag_name:
+        :returns:
+
+        """
+        self.data[tag_name] = tag
+
+    def local_event(self, build_window):
+        """Assign event numbers to the detector
+        based on just the detectors hits.
+
+        :param build_window: build window in ns.
+        :returns:
+
+        """
+        evt_id = sauce.global_event_sort(
+            self.data["time_raw"].to_numpy(), build_window
+        )
+        self.data["local_event"] = evt_id
 
 
 class DSSD(Detector):
