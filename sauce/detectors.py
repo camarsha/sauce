@@ -9,6 +9,7 @@ import pandas as pd
 import tables as tb
 from matplotlib.path import Path
 from .run_handling import Run
+from .run_handling import global_event_sort
 
 
 def smap(f, *args):
@@ -153,8 +154,43 @@ class Detector:
         else:
             return counts, bin_edges
 
-    def __getitem__(self, key):
-        return self.data[key]
+    def __getitem__(self, item):
+        return self.data.__getitem__(item)
+
+    def copy(self):
+        """Copy data from detector into new detector instance.
+
+        :returns: Copied instance of detector
+
+        """
+        new_det = Detector(self.crate, self.slot, self.channel, self.name)
+        new_det.data = self.data.copy(deep=True)
+        return new_det
+
+    def tag(self, tag, tag_name="tag"):
+        """Create a tag column in the dataframe.
+        Examples could be run number, a simple index, or
+        any other desired information.
+
+        :param tag:
+        :param tag_name:
+        :returns:
+
+        """
+        self.data[tag_name] = tag
+
+    def local_event(self, build_window):
+        """Assign event numbers to the detector
+        based on just the detectors hits.
+
+        :param build_window: build window in ns.
+        :returns:
+
+        """
+        evt_id = global_event_sort(
+            self.data["time_raw"].to_numpy(), build_window
+        )
+        self.data["local_event"] = evt_id
 
 
 class DSSD(Detector):
@@ -178,6 +214,12 @@ class DSSD(Detector):
                     row["crate"], row["slot"], row["channel"], det_name
                 )
 
+        # these are mostly unnecessary except for compatibility
+        # with other things that expect normal detector fields.
+        self.crate = 0
+        self.slot = 0
+        self.channel = 0
+
     def find_events(self, full_run_data):
 
         print("Finding " + self.name + " events")
@@ -196,3 +238,18 @@ class DSSD(Detector):
         self.data = pd.concat(frame, ignore_index=True).sort_values(
             by="time_raw"
         )
+
+
+def detector_union(name, *dets, by="time_raw"):
+    """Union different detectors if into a
+    new detector called "name"
+
+    :param name: string, new detector name
+    :returns: Detector object
+
+    """
+    frame = [d.data for d in dets]
+    new_det = Detector(0, 0, 0, name)
+    new_det.data = pd.concat(frame, ignore_index=True).sort_values(by=by)
+
+    return new_det

@@ -223,7 +223,6 @@ class EventBuilder:
         :returns: time filtered detectors.Detector
 
         """
-
         det_times = det.data[time_axis].to_numpy()
 
         # get indices of events that contain at least one of the detectors time stamps
@@ -323,6 +322,7 @@ class Coincident:
 
         """
         # Just make sure it is filtered first
+        det = det.copy()
         self.eb.filter_data(det)
 
         # update classes list, so we know what we got
