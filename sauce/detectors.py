@@ -187,7 +187,7 @@ class Detector:
         :returns:
 
         """
-        evt_id = sauce.global_event_sort(
+        evt_id = global_event_sort(
             self.data["time_raw"].to_numpy(), build_window
         )
         self.data["local_event"] = evt_id
