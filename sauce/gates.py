@@ -40,28 +40,12 @@ class Gate2D:
 
 
 class CreateGate2D(Gate2D):
-    def __init__(self, det, x_axis, y_axis, xy_range=None):
+    def __init__(self, det, x_axis, y_axis, **hist2d_kwargs):
         Gate2D.__init__(self, x_axis, y_axis)
         x = det.data[x_axis]
         y = det.data[y_axis]
         self.fig, self.ax = plt.subplots()
-        if xy_range:
-            self.ax.hist2d(
-                x,
-                y,
-                bins=[1024, 1024],
-                cmin=1,
-                range=[[0, xy_range[0]], [0, xy_range[1]]],
-            )
-        else:
-            self.ax.hist2d(
-                x,
-                y,
-                bins=[1024, 1024],
-                cmin=1,
-                range=[[0, x.max()], [0, y.max() + 100]],
-            )
-
+        self.ax.hist2d(x, y, **hist2d_kwargs)
         self.ax.set_title("Click to set gate, press enter to finish")
         self.cid = plt.connect("button_press_event", self.on_click)
         self.cid2 = plt.connect("key_press_event", self.on_press)
