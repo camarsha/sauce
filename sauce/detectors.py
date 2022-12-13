@@ -177,11 +177,12 @@ class Detector:
         :returns:
 
         """
-        self.data[tag_name] = tag
+        self.data.loc[tag_name] = tag
 
     def local_event(self, build_window):
         """Assign event numbers to the detector
-        based on just the detectors hits.
+        based on just the detectors hits. Also
+        give the multiplicity of the event
 
         :param build_window: build window in ns.
         :returns:
@@ -191,6 +192,10 @@ class Detector:
             self.data["time_raw"].to_numpy(), build_window
         )
         self.data["local_event"] = evt_id
+        self.data["multiplicity"] = 1
+        self.data["multiplicity"] = self.data.groupby("local_event")[
+            "multiplicity"
+        ].transform("count")
 
 
 class DSSD(Detector):
