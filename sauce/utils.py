@@ -68,3 +68,23 @@ def save_txt_spectrum(filename, x, y):
     with open(filename, "w") as f:
         for i, j in zip(x, y):
             f.write(str(i) + "      " + str(j) + "\n")
+
+
+def find_adjacent(dssd):
+    """Given a dssd detector that
+    has defined multiplicity, select multiplicity
+    two events and find which ones are
+    adjacent.
+
+    :param dssd: DSSD object
+    :returns: data frame
+
+    """
+    temp = (
+        dssd[dssd["multiplicity"] == 2]
+        .groupby("local_event")["strip"]
+        .transform("diff")
+    )
+    temp.iloc[::2] = temp.iloc[1::2]
+    temp = np.abs(temp)
+    return dssd[dssd["multiplicity"] == 2][temp == 1.0]
