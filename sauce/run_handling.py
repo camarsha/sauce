@@ -2,6 +2,7 @@ import pandas as pd
 import tables as tb
 import numpy as np
 import numba as nb
+from . import detectors
 
 
 @nb.njit
@@ -35,25 +36,29 @@ class Run:
     select the data it needs.
     """
 
-    def __init__(self, h5_filename, mode="r"):
+    def __init__(self, h5_filename, mode="r", load=True):
 
-        self.df = pd.read_hdf(h5_filename, "./raw_data/basic_info")
-        self.is_sorted = False
-        if np.any(self.df["is_trace"]):
-            with tb.open_file(h5_filename, "r") as f:
-                traces = f.root.raw_data.trace_array
+        self.h5_filename = h5_filename
+        if load:
+            self.df = pd.read_hdf(h5_filename, "./raw_data/basic_info")
+            self.is_sorted = False
+            if np.any(self.df["is_trace"]):
+                with tb.open_file(h5_filename, "r") as f:
+                    traces = f.root.raw_data.trace_array
 
-                # get array indices from df
-                trace_idx = self.df[self.df["is_trace"] == True]["trace_idx"]
-                # traces are indexed from 1
-                self.df["trace"] = [
-                    traces[i - 1] if is_trace else np.nan
-                    for (i, is_trace) in zip(
-                        self.df["trace_idx"], self.df["is_trace"]
-                    )
-                ]
-        else:
-            self.df["trace"] = np.nan
+                    # get array indices from df
+                    trace_idx = self.df[self.df["is_trace"] == True][
+                        "trace_idx"
+                    ]
+                    # traces are indexed from 1
+                    self.df["trace"] = [
+                        traces[i - 1] if is_trace else np.nan
+                        for (i, is_trace) in zip(
+                            self.df["trace_idx"], self.df["is_trace"]
+                        )
+                    ]
+            else:
+                self.df["trace"] = np.nan
 
     def global_event_builder(self, build_window):
         """
@@ -72,3 +77,14 @@ class Run:
 
         event_idx = global_event_sort(times, build_window)
         self.df["event"] = event_idx
+
+    def save_detector(self, detector):
+        detector.data.to_hdf(
+            self.h5_filename, "/sorted_data/" + detector.name, mode="r+"
+        )
+
+    def load_detector(self, name):
+        df = pd.read_hdf(self.h5_filename, "./sorted_data/" + name)
+        detector = detectors.Detector(0, 0, 0, name)
+        detector.data = df
+        return detector
