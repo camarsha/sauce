@@ -177,7 +177,7 @@ class Detector:
         :returns:
 
         """
-        self.data.loc[tag_name] = tag
+        self.data[tag_name] = tag
 
     def local_event(self, build_window):
         """Assign event numbers to the detector
