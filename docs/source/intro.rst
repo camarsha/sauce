@@ -14,10 +14,8 @@ about the data that you have to deal with:
 3) Data is timestamped from a digital data acquisition system.
 
 Data that meets these 3 criteria is what :code:`sauce` is targeted towards.
+So, let's start.
 
-+++++++++++
-First Steps
-+++++++++++
 
 Import the package...
 
@@ -68,17 +66,34 @@ So with the :code:`Run` object in hand from the last section, we can start makin
    det.find_events(run) # This pulls all of the hits in the specified crate, module, channel and puts them into det.data
 
 The underlying DataFrame can be accessed using :code:`__getitem()`, so if we want to return the energy column we would just write
-:code:`det["energy"]`.  
+:code:`det["energy"]`. Histogramming of a :code:`Detector` can be done at anytime:
+
+.. code-block:: python
+
+   lower = 0
+   upper = 32000
+   bins = 4096
+   det.hist(lower, upper, bins)
 
 
-++++++++++++++
+
 Event Building
-++++++++++++++
+==============
 
-I will get here
+Looking at the hits of a single detector is of course useful, but
+rarely the quantity of interest for an analysis. Here we assume that our data is a product of a *trigger less* digital data acquisition system. Under this assumption, any hit in any channel will be recorded, regardless of what is happening in the other channels. Relationships between channels will need to be specified via an *event builder*, and this *event builder* will, necessarily, have to be implemented in software.
 
-++++++
+*sauce* has two approaches to event building that can invoked at will:
+
+* A simple function to group a set of hits into equal length bins. A build window is started by the earliest
+  hit, regardless of channel, and all subsequent hits are grouped to that event.
+
+* A more complex class that creates disjoint build windows from a set of reference timestamps.
+   
+
+ 
+   
 Gating
-++++++
+======
 
 And here

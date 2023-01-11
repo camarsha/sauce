@@ -1,16 +1,17 @@
 .. This file should at least contain the root `toctree` directive.
 
-.. Welcome to SECAR documentation!
-.. ===============================
+Welcome to sauce documentation!
+===============================
 
-.. Contents:
+Contents:
 
 .. toctree::
     :numbered:
-    :maxdepth: 3
+    :maxdepth: 2
     :caption: Contents:
 
     intro
+    example
 	      
 .. Indices and tables
 .. ==================
