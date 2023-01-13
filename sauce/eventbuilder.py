@@ -179,10 +179,13 @@ class EventBuilder:
         :returns:
 
         """
-        # just in case you include a negative
-        low = np.abs(low)
+        # The low, high arguments are now signed, so check that they make sense
+        if high <= low:
+            raise Exception(
+                "Invalid build window, high limit is less than low limit."
+            )
 
-        low_stamps = self.timestamps - low
+        low_stamps = self.timestamps + low
         high_stamps = self.timestamps + high
 
         self.pre_reduced_len = len(self.timestamps)
