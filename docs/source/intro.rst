@@ -90,10 +90,52 @@ rarely the quantity of interest for an analysis. Here we assume that our data is
 
 * A more complex class that creates disjoint build windows from a set of reference timestamps.
    
+It requires a mix and match of these event building techniques to cover common use cases. The simple approach is often suitable for a single physical detector that is readout through multiple channels (i.e DSSD, Gi Clover, position sensitive detectors). In *sauce* the simple approach can be invoked on a :code:`Detector` instance:
 
+.. code-block:: python
+
+   det.local_events(500) # instance of detector from above, 500 is 500 ns build window.
  
-   
+After invoking this method, :code:`det` will have two new columns in its DataFrame: "local_event" and "multiplicity". Now each hit can be associated with an event number (starting from 0) and the multiplicity column tell you how many total hits belong to that event number (i.e fall within the 500 ns build window).
+
+If you have two separate physical detectors (say a charged particle detector of some kind and a gamma detector), it is often the case that one of those will have a much lower count rate and you wish to find a hit in the other detector only if the lower rate detector has fired. The :code:`sauce.EventBuilder` class is built just for this scenario:
+
+.. code-block:: python
+
+   det1 # low count rate detector that has already been initialized with data
+   det2 # high count rate detector
+
+   eb = sauce.EventBuilder() # create the event builder object
+   eb.add_timestamps(det1) # takes the data in the "time_raw" column and adds it to the object
+   eb.create_build_windows(-500, 500) # Build windows 500 ns before and after the det1 hit.
+
+At this stage we have an event builder that will *uniquely* associate events. What I mean is that if two hits in the reference detector overlap temporally, the later hit is dropped.
+Once these disjoint windows are built and data that is filtered through the event builder will also have one hit kept (the earliest) and the rest dropped. Each event by construction can only
+be associated with one hit in each detector.
+
+The simplest way to start looking at correlations once you have an initialized event builder is to use the :code:`sauce.Coincident` class.
+
+.. code-block:: python
+
+   coin = sauce.Coincident(eb) # pass it the event builder instance
+   coin.add_detector(det1)
+   coin.add_detector(det2)
+
+   det_12 = coin[det1, det2] # the __getitem__ call builds a new detector that has coincident events from det1 and det2 using the event builder
+
+For this particular case :code:`Coincident` is overkill, but with a more complex system it allows you to add as many detectors as needed, and then at will create a new detector that has only the coincidences that you are interested in. If we had two more detectors, :code:`det3` and :code:`det4`, we could do the following:
+
+.. code-block:: python
+
+   coin.add_detector(det3)
+   coin.add_detector(det4)
+
+   det34 = coin[det3, det4] # events that have both det3 and det4 in them (events are still referencing timestamps from det1)
+   det24 = coin[det2, det4] # events that have both det2 and det4
+   det1234 = coin[det1, det2, det3, det4] # events that have every detector present
+
+		
 Gating
 ======
 
-And here
+
