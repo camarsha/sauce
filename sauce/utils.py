@@ -1,4 +1,5 @@
-import pandas as pd
+# import pandas as pd
+import modin.pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.path import Path
 import matplotlib.patches as patches

@@ -1,8 +1,14 @@
-import pandas as pd
+# import pandas as pd
+import modin.pandas as pd
 import tables as tb
 import numpy as np
 import numba as nb
 from . import detectors
+
+import modin.config as cfg
+
+cfg.Engine.put("dask")
+cfg.StorageFormat.put("pandas")
 
 
 @nb.njit

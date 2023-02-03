@@ -5,11 +5,18 @@ This file helps map the data to actual detectors and group them.
 """
 
 import numpy as np
-import pandas as pd
+
+# import pandas as pd
+import modin.pandas as pd
 import tables as tb
 from matplotlib.path import Path
 from .run_handling import Run
 from .run_handling import global_event_sort
+
+import modin.config as cfg
+
+cfg.Engine.put("dask")
+cfg.StorageFormat.put("pandas")
 
 
 def smap(f, *args):
