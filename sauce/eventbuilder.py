@@ -1,6 +1,5 @@
-import pandas as pd
+import modin.pandas as pd
 import numpy as np
-import numba as nb
 from . import detectors
 
 """
@@ -45,7 +44,6 @@ def get_closest(array, values):
     return idxs
 
 
-@nb.njit
 def reduce_intervals(low, high):
     """
 
@@ -66,7 +64,6 @@ def reduce_intervals(low, high):
     j = 1
 
     while i < len(high) and j < len(low):
-
         h = high[i]
         l = low[j]
         if l <= h:
@@ -79,7 +76,6 @@ def reduce_intervals(low, high):
     return reject
 
 
-@nb.njit
 def find_coincident_events(A, B, C):
     """
     taken from: https://stackoverflow.com/questions/43382056/detect-if-elements-are-within-pairs-of-interval-limits
@@ -94,7 +90,6 @@ def find_coincident_events(A, B, C):
     return m_AB
 
 
-@nb.njit
 def assign_event(hit_index, lower, upper, data):
     """
 
@@ -170,7 +165,6 @@ class EventBuilder:
         self.timestamps = np.sort(self.timestamps)
 
     def create_build_windows(self, low, high):
-
         """Call after all timestamps have been added. Method
         then constructs disjoint intervals with in
 
@@ -245,7 +239,6 @@ class EventBuilder:
 
 
 def same_event(det1, det2):
-
     """
 
     Sorting based on event number, defined by the event builder
@@ -292,7 +285,7 @@ def same_event(det1, det2):
 
 
 class Coincident:
-    def __init__(self, eb):
+    def __init__(self, ref_det):
         """This class expands on the initial
         concept present in same_event(det1, det2).
 
@@ -302,8 +295,7 @@ class Coincident:
         :param eb: instance of EventBuilder
 
         """
-        self.eb = eb
-        self.data = pd.DataFrame({"event": eb.event_numbers})
+        self.data = pd.DataFrame({"event": ref_det["event"].copy()})
         self.det_names = []
 
     def _detector_or_name(self, det):
@@ -316,7 +308,6 @@ class Coincident:
         return name
 
     def add_detector(self, det, columns=None):
-
         """Add a detector's data to the coincidence object.
 
         :param det: an instance of detector.Detector
@@ -324,9 +315,7 @@ class Coincident:
         :returns:
 
         """
-        # Just make sure it is filtered first
         det = det.copy()
-        self.eb.filter_data(det)
 
         # update classes list, so we know what we got
         if det.name in self.det_names:
@@ -396,11 +385,11 @@ class Coincident:
             # all the columns needed
             columns += self._get_detector_columns(d)
 
-            # I am assuming that energy is always a valid column
-            truth_series.append(self._column_mask(d, "energy"))
+            # I am assuming that adc is always a valid column
+            truth_series.append(self._column_mask(d, "adc"))
 
         total = np.logical_and.reduce(truth_series)
-        new_det = detectors.Detector(0, 0, 0, total_name)
+        new_det = detectors.Detector(total_name)
         new_det.data = self.data.loc[total][columns]
         return new_det
 

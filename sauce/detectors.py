@@ -5,11 +5,9 @@ This file helps map the data to actual detectors and group them.
 """
 
 import numpy as np
-import pandas as pd
-import tables as tb
+import modin.pandas as pd
 from matplotlib.path import Path
 from .run_handling import Run
-from .run_handling import global_event_sort
 
 
 def smap(f, *args):
@@ -23,16 +21,13 @@ class Detector:
     Class to hold data relevant to the specific channel.
     """
 
-    def __init__(self, crate, slot, channel, name):
-
-        self.crate = crate
-        self.slot = slot
-        self.channel = channel
+    def __init__(self, name, primary_axis="adc"):
+        # must initialize the dataframe first to stop recursion error
         self.name = name
+        self.primary_axis = "adc"
         self.data = None
 
-    def find_events(self, full_run_data):
-
+    def find_events(self, full_run_data, module_id, channel):
         """
         After more usage, I think it is useful to either
         load the entire run (detailed analysis) or
@@ -44,84 +39,33 @@ class Detector:
         """
 
         if isinstance(full_run_data, Run):
-            self._events_from_run(full_run_data)
+            self._events_from_run(full_run_data, module_id, channel)
         elif isinstance(full_run_data, str):
-            self._events_from_h5(full_run_data)
+            run_temp = Run(full_run_data)
+            self._events_from_run(run_temp, module_id, channel)
         else:
-            print("Only Run objects or h5_file paths accepted!")
+            print("Only Run objects or csv_file paths accepted!")
 
-    def _events_from_run(self, run_obj):
+    def _events_from_run(self, run_obj, module, channel):
         df = run_obj.df
 
         # pull the relevant data
         self.data = df.loc[
-            (df["crate"] == self.crate)
-            & (df["slot"] == self.slot)
-            & (df["channel"] == self.channel)
+            (df["module"] == module) & (df["channel"] == channel)
         ]
 
-        # Drop all of the columns that are not needed anymore
-        self.data = (
-            self.data.drop(
-                columns=["crate", "slot", "channel", "trace_idx", "is_trace"]
-            )
-            .reset_index(drop=True)
-            .sort_values(by="time_raw")
-        )
+    def _axis_cond(self, axis):
+        if axis == None:
+            return self.primary_axis
+        else:
+            return axis
 
-    def _events_from_h5(self, h5_filename):
-        with tb.open_file(h5_filename, "r") as f:
+    def apply_threshold(self, threshold, axis=None):
+        axis = self._axis_cond(axis)
+        self.data = self.data.loc[axis > threshold]
 
-            # string for the query
-            where_str = (
-                "( crate == "
-                + str(self.crate)
-                + ") & ( slot == "
-                + str(self.slot)
-                + ") & ( channel == "
-                + str(self.channel)
-                + ")"
-            )
-
-            table = f.root.raw_data.basic_info
-            traces = f.root.raw_data.trace_array
-            det_iter = table.where(where_str)
-
-            # list of tuples into dataframe
-            self.data = pd.DataFrame.from_records(
-                [x.fetch_all_fields() for x in det_iter], columns=table.colnames
-            )
-
-            if np.any(self.data["is_trace"]):
-                # traces are indexed from 1
-                self.data["trace"] = [
-                    traces[i - 1] if is_trace else np.nan
-                    for (i, is_trace) in zip(
-                        self.data["trace_idx"], self.data["is_trace"]
-                    )
-                ]
-            else:
-                self.data["trace"] = np.nan
-
-        # Drop all of the columns that are not needed anymore and sort
-        self.data = (
-            self.data.drop(
-                columns=["crate", "slot", "channel", "trace_idx", "is_trace"]
-            )
-            .reset_index(drop=True)
-            .sort_values(by="time_raw")
-        )
-
-    def energy_calibrate(self, calibration_function):
-        self.data["energy"] = calibration_function(self.data["energy"])
-
-    def time_calibrate(self, calibration_function):
-        self.data["time"] = calibration_function(self.data["time"])
-
-    def apply_threshold(self, threshold, axis="energy"):
-        self.data = self.data.loc[self.data["energy"] > threshold]
-
-    def apply_cut(self, cut, axis="energy"):
+    def apply_cut(self, cut, axis=None):
+        axis = self._axis_cond(axis)
         self.data = self.data.loc[
             (self.data[axis] > cut[0]) & (self.data[axis] < cut[1])
         ]
@@ -139,10 +83,11 @@ class Detector:
         results = poly.contains_points(self.data[[x_axis, y_axis]])
         self.data = self.data[results]
 
-    def hist(self, lower, upper, bins, axis="energy", centers=True):
+    def hist(self, lower, upper, bins, axis=None, centers=True):
         """
         Return a histrogram of the given axis.
         """
+        axis = self._axis_cond(axis)
 
         counts, bin_edges = np.histogram(
             self.data[axis], bins=bins, range=(lower, upper)
@@ -163,7 +108,7 @@ class Detector:
         :returns: Copied instance of detector
 
         """
-        new_det = Detector(self.crate, self.slot, self.channel, self.name)
+        new_det = Detector(self.name)
         new_det.data = self.data.copy(deep=True)
         return new_det
 
@@ -179,73 +124,8 @@ class Detector:
         """
         self.data[tag_name] = tag
 
-    def local_event(self, build_window):
-        """Assign event numbers to the detector
-        based on just the detectors hits. Also
-        give the multiplicity of the event
 
-        :param build_window: build window in ns.
-        :returns:
-
-        """
-        evt_id = global_event_sort(
-            self.data["time_raw"].to_numpy(), build_window
-        )
-        self.data["local_event"] = evt_id
-        self.data["multiplicity"] = 1
-        self.data["multiplicity"] = self.data.groupby("local_event")[
-            "multiplicity"
-        ].transform("count")
-
-
-class DSSD(Detector):
-    def __init__(self, map_filename, side, map_seperator="\s+"):
-        """
-        Creates dictonary of Detector objects that correspond to
-        the one side of the DSSD. map_filename provides the
-        channel ids
-        """
-
-        self.data = None
-        self.side = side
-        self.dssd_dic = {}
-        self.name = "dssd_" + side
-
-        temp_file = pd.read_csv(map_filename, sep=map_seperator)
-        for index, row in temp_file.iterrows():
-            if row["side"] == side:
-                det_name = str(row["side"]) + " " + str(row["strip"])
-                self.dssd_dic[row["strip"]] = Detector(
-                    row["crate"], row["slot"], row["channel"], det_name
-                )
-
-        # these are mostly unnecessary except for compatibility
-        # with other things that expect normal detector fields.
-        self.crate = 0
-        self.slot = 0
-        self.channel = 0
-
-    def find_events(self, full_run_data):
-
-        print("Finding " + self.name + " events")
-
-        # assign the data, results from map are in original order
-        for k, v in self.dssd_dic.items():
-            v.find_events(full_run_data)
-            v.data["strip"] = int(k)
-        self._make_data()
-
-    def _make_data(self):
-        # Make sure you clear the data frame first
-        self.data = None
-
-        frame = [x.data for i, x in self.dssd_dic.items()]
-        self.data = pd.concat(frame, ignore_index=True).sort_values(
-            by="time_raw"
-        )
-
-
-def detector_union(name, *dets, by="time_raw"):
+def detector_union(name, *dets, by="tdc"):
     """Union different detectors if into a
     new detector called "name"
 
@@ -254,7 +134,7 @@ def detector_union(name, *dets, by="time_raw"):
 
     """
     frame = [d.data for d in dets]
-    new_det = Detector(0, 0, 0, name)
+    new_det = Detector(name)
     new_det.data = pd.concat(frame, ignore_index=True).sort_values(by=by)
 
     return new_det
