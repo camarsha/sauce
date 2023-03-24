@@ -13,5 +13,6 @@ setup(
         "pandas",
         "matplotlib",
         "tables",
+        "numba",
     ],
 )
