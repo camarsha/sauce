@@ -8,18 +8,41 @@ import numpy as np
 import modin.pandas as pd
 from matplotlib.path import Path
 from .run_handling import Run
+import numba as nb
 
 
-def smap(f, *args):
-    # convenience function for multiprocessing
-    return f(*args)
+@nb.njit
+def local_event_sort(times, build_window):
+    """Produce an array with event number.
+
+    The event number is based on a simple build
+    window starting from the earliest event.
+    :param times:
+    :param build_window:
+    :returns:
+
+    """
+    t_i = times[0]
+    t_f = t_i + build_window
+    event = 0
+    event_number = np.empty(len(times))
+    event_number[:] = np.nan
+
+    for i in range(len(times)):
+        tc = times[i]
+
+        if tc >= t_i and tc < t_f:
+            event_number[i] = event
+        else:
+            t_i = tc
+            t_f = tc + build_window
+            event += 1
+            event_number[i] = event
+    return event_number
 
 
 class Detector:
-
-    """
-    Class to hold data relevant to the specific channel.
-    """
+    """Class to hold data relevant to the specific channel."""
 
     def __init__(self, name, primary_axis="adc"):
         # must initialize the dataframe first to stop recursion error
@@ -123,6 +146,22 @@ class Detector:
 
         """
         self.data[tag_name] = tag
+
+    def local_event(self, build_window):
+        """Assign event numbers to the detector
+        based on just the detectors hits. Also
+        give the multiplicity of the event
+        :param build_window: build window in ns.
+        :returns:
+        """
+        evt_id = local_event_sort(
+            self.data["time_raw"].to_numpy(), build_window
+        )
+        self.data["local_event"] = evt_id
+        self.data["multiplicity"] = 1
+        self.data["multiplicity"] = self.data.groupby("local_event")[
+            "multiplicity"
+        ].transform("count")
 
 
 def detector_union(name, *dets, by="tdc"):
