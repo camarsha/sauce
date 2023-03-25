@@ -1,5 +1,5 @@
 import numpy as np
-import modin.pandas as pd
+import pandas as pd
 from matplotlib.path import Path
 from matplotlib import pyplot as plt
 import matplotlib.patches as patches
