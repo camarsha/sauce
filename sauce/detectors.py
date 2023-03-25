@@ -5,10 +5,11 @@ This file helps map the data to actual detectors and group them.
 """
 
 import numpy as np
-import modin.pandas as pd
 from matplotlib.path import Path
 from .run_handling import Run
 import numba as nb
+import pandas as pd
+import polars as pl
 
 
 @nb.njit
@@ -50,7 +51,7 @@ class Detector:
         self.primary_axis = "adc"
         self.data = None
 
-    def find_events(self, full_run_data, module_id, channel):
+    def find_events(self, run_data, module_id, channel):
         """
         After more usage, I think it is useful to either
         load the entire run (detailed analysis) or
@@ -61,11 +62,10 @@ class Detector:
         on whether a Run object is passed or a path to an h5 file.
         """
 
-        if isinstance(full_run_data, Run):
-            self._events_from_run(full_run_data, module_id, channel)
-        elif isinstance(full_run_data, str):
-            run_temp = Run(full_run_data)
-            self._events_from_run(run_temp, module_id, channel)
+        if isinstance(run_data, Run):
+            self._events_from_run(run_data, module_id, channel)
+        elif isinstance(run_data, str):
+            self._events_from_str(run_data, module_id, channel)
         else:
             print("Only Run objects or csv_file paths accepted!")
 
@@ -77,6 +77,17 @@ class Detector:
             (df["module"] == module) & (df["channel"] == channel)
         ]
 
+    def _events_from_str(self, run_str, module, channel):
+        # pull the data
+        self.data = (
+            pl.scan_csv(run_str)
+            .filter(
+                (pl.col("module") == module) & (pl.col("channel") == channel)
+            )
+            .collect(streaming=True)
+            .to_pandas()
+        )
+
     def _axis_cond(self, axis):
         if axis == None:
             return self.primary_axis
@@ -85,7 +96,7 @@ class Detector:
 
     def apply_threshold(self, threshold, axis=None):
         axis = self._axis_cond(axis)
-        self.data = self.data.loc[axis > threshold]
+        self.data = self.data[self.data[axis] > threshold]
 
     def apply_cut(self, cut, axis=None):
         axis = self._axis_cond(axis)
@@ -147,16 +158,14 @@ class Detector:
         """
         self.data[tag_name] = tag
 
-    def local_event(self, build_window):
+    def local_event(self, build_window, time_axis="evt_ts"):
         """Assign event numbers to the detector
         based on just the detectors hits. Also
         give the multiplicity of the event
         :param build_window: build window in ns.
         :returns:
         """
-        evt_id = local_event_sort(
-            self.data["time_raw"].to_numpy(), build_window
-        )
+        evt_id = local_event_sort(self.data[time_axis].to_numpy(), build_window)
         self.data["local_event"] = evt_id
         self.data["multiplicity"] = 1
         self.data["multiplicity"] = self.data.groupby("local_event")[

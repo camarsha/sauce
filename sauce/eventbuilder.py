@@ -1,4 +1,4 @@
-import modin.pandas as pd
+import pandas as pd
 import numpy as np
 import numba as nb
 from . import detectors
@@ -187,7 +187,7 @@ class EventBuilder:
         det.data = det.data.drop_duplicates("event", keep="first")
 
         after_len = len(det.data)
-        det.livetime = before_len / after_len
+        det.livetime = after_len / before_len
 
         return det
 
@@ -220,7 +220,7 @@ class Coincident:
             raise Exception(name + " is not in this object.")
         return name
 
-    def add_detectors(self, *dets, columns=None):
+    def add_detectors(self, *dets):
         """Add a several detectors data to the coincidence object.
 
         :param det: an instance of detector.Detector
@@ -228,29 +228,27 @@ class Coincident:
         :returns:
 
         """
+
+        # first get the column names
+        columns = []
+        # pull out the non-empty columns
+        for det in dets:
+            for ele in det.data.columns:
+                if np.any(det.data[ele]) and ele not in columns:
+                    columns.append(ele)
+        # and add the event column that will exist
+        columns.append("event")
+        # now add them to the data frame
         for det in dets:
             det = det.copy()
-
+            if self.eb:
+                self.eb.filter_data(det)
             # update classes list, so we know what we got
             if det.name in self.det_names:
                 raise Exception(
                     det.name + " is already in this coincidence object."
                 )
             self.det_names.append(det.name)
-
-            # Only pull the non-empty columns
-            if not columns:
-                columns = []
-                for ele in det.data.columns:
-                    try:
-                        if np.any(det.data[ele]):
-                            columns.append(ele)
-                    except ValueError:
-                        # These two quantities will continue to haunt me
-                        if ele == "trace" or "qdc" in ele:
-                            columns.append(ele)
-                        else:
-                            print("Not sure what to do with column:" + ele)
 
             # new names to identify with the specific detector
             new_names = {}
@@ -299,8 +297,8 @@ class Coincident:
             # all the columns needed
             columns += self._get_detector_columns(d)
 
-            # I am assuming that adc is always a valid column
-            truth_series.append(self._column_mask(d, "adc"))
+            # I am assuming that tdc is always a valid column
+            truth_series.append(self._column_mask(d, "tdc"))
 
         total = np.logical_and.reduce(truth_series)
         new_det = detectors.Detector(total_name)
