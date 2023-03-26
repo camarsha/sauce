@@ -79,14 +79,37 @@ class Detector:
 
     def _events_from_str(self, run_str, module, channel):
         # pull the data
-        self.data = (
-            pl.scan_csv(run_str)
-            .filter(
-                (pl.col("module") == module) & (pl.col("channel") == channel)
+        if ".csv" in run_str:
+            self.data = (
+                pl.scan_csv(run_str)
+                .filter(
+                    (pl.col("module") == module)
+                    & (pl.col("channel") == channel)
+                )
+                .collect(streaming=True)
+                .to_pandas()
             )
-            .collect(streaming=True)
-            .to_pandas()
-        )
+        if ".parquet" in run_str:
+            self.data = (
+                pl.scan_parquet(run_str)
+                .filter(
+                    (pl.col("module") == module)
+                    & (pl.col("channel") == channel)
+                )
+                .collect(streaming=True)
+                .to_pandas()
+            )
+
+        if ".feather" in run_str:
+            self.data = (
+                pl.scan_ipc(run_str)
+                .filter(
+                    (pl.col("module") == module)
+                    & (pl.col("channel") == channel)
+                )
+                .collect(streaming=True)
+                .to_pandas()
+            )
 
     def _axis_cond(self, axis):
         if axis == None:
