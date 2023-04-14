@@ -198,7 +198,7 @@ class Detector:
         ].transform("count")
 
 
-def detector_union(name, *dets, by="tdc"):
+def detector_union(name, *dets, by="evt_ts"):
     """Union different detectors if into a
     new detector called "name"
 
@@ -209,5 +209,4 @@ def detector_union(name, *dets, by="tdc"):
     frame = [d.data for d in dets]
     new_det = Detector(name)
     new_det.data = pd.concat(frame, ignore_index=True).sort_values(by=by)
-
     return new_det
