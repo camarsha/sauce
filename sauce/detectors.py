@@ -69,8 +69,10 @@ class Detector:
         else:
             print("Only Run objects or csv_file paths accepted!")
         # drop useless columns and sort the timestamps
-        self.data = self.data.drop(columns=["module", "channel"]).reset_index(
-            drop=True
+        self.data = (
+            self.data.drop(columns=["module", "channel"])
+            .reset_index(drop=True)
+            .sort_values(by="evt_ts")
         )
 
     def _events_from_run(self, run_obj, module, channel):
@@ -90,7 +92,6 @@ class Detector:
                     (pl.col("module") == module)
                     & (pl.col("channel") == channel)
                 )
-                .sort(pl.col("evt_ts"))
                 .collect(streaming=True)
                 .to_pandas()
             )
@@ -101,7 +102,6 @@ class Detector:
                     (pl.col("module") == module)
                     & (pl.col("channel") == channel)
                 )
-                .sort(pl.col("evt_ts"))
                 .collect(streaming=True)
                 .to_pandas()
             )
@@ -113,7 +113,6 @@ class Detector:
                     (pl.col("module") == module)
                     & (pl.col("channel") == channel)
                 )
-                .sort(pl.col("evt_ts"))
                 .collect(streaming=True)
                 .to_pandas()
             )
