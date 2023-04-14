@@ -17,4 +17,6 @@ class Run:
             self.df = pl.read_parquet(filename).to_pandas()  # x15 faster
         if ".feather" in filename:
             self.df = pl.read_ipc(filename).to_pandas()  # x15 faster
-        self.is_sorted = False
+
+        # sort the timestamps
+        self.df = self.df.sort_values(by="evt_ts")
