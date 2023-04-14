@@ -68,8 +68,12 @@ class Detector:
             self._events_from_str(run_data, module_id, channel)
         else:
             print("Only Run objects or csv_file paths accepted!")
-        # sort the timestamps
-        self.data = self.data.sort_values(by="evt_ts")
+        # drop useless columns and sort the timestamps
+        self.data = (
+            self.data.drop(columns=["module", "channel"])
+            .reset_index(drop=True)
+            .sort_values(by="evt_ts")
+        )
 
     def _events_from_run(self, run_obj, module, channel):
         df = run_obj.df
