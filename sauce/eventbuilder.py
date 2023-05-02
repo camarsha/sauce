@@ -24,7 +24,6 @@ def reduce_intervals(low, high):
     j = 1
 
     while i < len(high) and j < len(low):
-
         h = high[i]
         l = low[j]
         if l <= h:
@@ -119,7 +118,6 @@ class EventBuilder:
         self.timestamps = np.sort(self.timestamps)
 
     def create_build_windows(self, low, high):
-
         """Call after all timestamps have been added. Method
         then constructs disjoint intervals with in
         :param low: lower bound of coincident window in nanoseconds
@@ -194,22 +192,22 @@ class EventBuilder:
 
 class Coincident:
     def __init__(self, ref_det_eb):
-        """This class expands on the initial
-        concept present in same_event(det1, det2).
+        """This has been reworked to because the
+        old version was half broken.
 
-        We start to build a hierarchical structure
-        with the nodes being event number.
+        We want to have a lighter weight object, so
+        ideally you just call coin[det1, det2, det3]
+        and get out what you
+        want, instead of a huge dataframe being stored.
 
         :param eb: instance of EventBuilder
 
         """
         self.eb = None
-        if isinstance(ref_det_eb, EventBuilder):
-            self.data = pd.DataFrame({"event": ref_det_eb.event_numbers.copy()})
-            self.eb = ref_det_eb
-        else:
-            self.data = pd.DataFrame({"event": ref_det_eb["event"].copy()})
+        self.data = pd.DataFrame({"event": ref_det_eb.event_numbers.copy()})
+        self.eb = ref_det_eb
         self.det_names = []
+        self.det_columns = {}
 
     def _detector_or_name(self, det):
         if isinstance(det, detectors.Detector):
@@ -229,36 +227,47 @@ class Coincident:
 
         """
 
-        # first get the column names
-        columns = []
-        # pull out the non-empty columns
-        for det in dets:
-            for ele in det.data.columns:
-                if np.any(det.data[ele]) and ele not in columns:
-                    columns.append(ele)
-        # and add the event column that will exist
-        columns.append("event")
         # now add them to the data frame
         for det in dets:
-            det = det.copy()
-            if self.eb:
-                self.eb.filter_data(det)
             # update classes list, so we know what we got
             if det.name in self.det_names:
-                raise Exception(
-                    det.name + " is already in this coincidence object."
-                )
-            self.det_names.append(det.name)
+                print(det.name + " is already in coincidence object, skipping.")
+                continue
+            else:
+                self.det_names.append(det.name)
 
-            # new names to identify with the specific detector
+            # create a copy so we can destructively alter every thing
+            det = det.copy()
+            self.eb.filter_data(det)
+
+            # rename the detector columns
             new_names = {}
-            for ele in columns:
-                if det.name not in ele and ele != "event":
-                    new_names[ele] = ele + "_" + det.name
+            # store the column names for easy retrieval later
+            self.det_columns[det.name] = []
 
+            for ele in det.data.columns:
+                # if this was already produced from a coin object we don't need
+                # to rename
+                try:
+                    name_check = ele.split("_")[1]
+                    if name_check == det.name:
+                        self.det_columns[det.name].append(
+                            ele
+                        )  # put unaltered name in
+                        continue  # we already have a column that denotes the detector
+                except IndexError:
+                    pass  # default case, name is unaltered at this point
+                if ele != "event":
+                    new_name = ele + "_" + det.name
+                    new_names[ele] = new_name
+                    self.det_columns[det.name].append(
+                        new_name
+                    )  # we don't care about event
+
+            # rename and merge
             self.data = pd.merge(
                 self.data,
-                det.data[columns].rename(columns=new_names),
+                det.data.rename(columns=new_names),
                 on="event",
                 how="left",
             )
@@ -270,13 +279,17 @@ class Coincident:
 
     def _get_detector_columns(self, det):
         name = self._detector_or_name(det)
-        columns = [i for i in self.data.columns if name in i]
+        columns = self.det_columns[name]
         return columns
 
     def _column_mask(self, det, axis):
-        name = axis + "_"
-        name += self._detector_or_name(det)
-        return ~self.data[name].isnull()
+        if det.coin:
+            return ~self.data[axis].isnull()
+        else:
+            # reset the coin slot so we can use ~ again
+            det.coin = not det.coin
+            # return the anticoincidences
+            return self.data[axis].isnull()
 
     def create_intersection(self, *dets):
         """Given all these detectors return
@@ -287,18 +300,25 @@ class Coincident:
         """
         truth_series = []
         total_name = ""
-        columns = []
+        columns = ["event"]
 
         for d in dets:
             # make a name like dssd_ic_another_....
             if total_name:
                 total_name += "_"
-            total_name += self._detector_or_name(d)
-            # all the columns needed
-            columns += self._get_detector_columns(d)
 
-            # I am assuming that tdc is always a valid column
-            truth_series.append(self._column_mask(d, "tdc"))
+            temp_name = self._detector_or_name(d)
+            cols = self._get_detector_columns(d)
+            if not d.coin:
+                # not coincident, don't extract columns
+                total_name += "!" + temp_name
+            else:
+                total_name += temp_name
+                # all the columns needed
+                columns += cols
+
+            # Just grab the first column
+            truth_series.append(self._column_mask(d, cols[0]))
 
         total = np.logical_and.reduce(truth_series)
         new_det = detectors.Detector(total_name)
@@ -315,3 +335,13 @@ class Coincident:
         if isinstance(key, slice):
             return self.data[key]
         return self.create_intersection(key)
+
+
+class SpecifyEvents:
+    def __init__(self, event_builder):
+        self.eb = event_builder
+        self.event_nums = []
+
+    def add_coin(self, det_obj):
+        temp = det_obj.copy()
+        event_nums = self.eb.filter_data(temp)["events"]
