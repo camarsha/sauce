@@ -13,7 +13,7 @@ import polars as pl
 
 
 @nb.njit
-def local_event_sort(times, build_window):
+def referenceless_event_sort(times, build_window):
     """Produce an array with event number.
 
     The event number is based on a simple build
@@ -50,8 +50,9 @@ class Detector:
         self.name = name
         self.primary_axis = "adc"
         self.data = None
+        self.coin = True
 
-    def find_events(self, run_data, module_id, channel):
+    def find_hits(self, run_data, module_id, channel):
         """
         After more usage, I think it is useful to either
         load the entire run (detailed analysis) or
@@ -63,9 +64,9 @@ class Detector:
         """
 
         if isinstance(run_data, Run):
-            self._events_from_run(run_data, module_id, channel)
+            self._hits_from_run(run_data, module_id, channel)
         elif isinstance(run_data, str):
-            self._events_from_str(run_data, module_id, channel)
+            self._hits_from_str(run_data, module_id, channel)
         else:
             print("Only Run objects or csv_file paths accepted!")
         # drop useless columns and sort the timestamps
@@ -75,7 +76,7 @@ class Detector:
             .sort_values(by="evt_ts")
         )
 
-    def _events_from_run(self, run_obj, module, channel):
+    def _hits_from_run(self, run_obj, module, channel):
         df = run_obj.df
 
         # pull the relevant data
@@ -83,7 +84,7 @@ class Detector:
             (df["module"] == module) & (df["channel"] == channel)
         ]
 
-    def _events_from_str(self, run_str, module, channel):
+    def _hits_from_str(self, run_str, module, channel):
         # pull the data
         if ".csv" in run_str:
             self.data = (
@@ -165,6 +166,13 @@ class Detector:
     def __getitem__(self, item):
         return self.data.__getitem__(item)
 
+    def __setitem__(self, item):
+        return self.data.__setitem__(item)
+
+    def __invert__(self):
+        self.coin = not self.coin
+        return self
+
     def copy(self):
         """Copy data from detector into new detector instance.
 
@@ -187,15 +195,18 @@ class Detector:
         """
         self.data[tag_name] = tag
 
-    def local_event(self, build_window, time_axis="evt_ts"):
+    def build_referenceless_events(self, build_window, time_axis="evt_ts"):
         """Assign event numbers to the detector
         based on just the detectors hits. Also
         give the multiplicity of the event
         :param build_window: build window in ns.
         :returns:
         """
-        evt_id = local_event_sort(self.data[time_axis].to_numpy(), build_window)
-        self.data["local_event"] = evt_id
+        evt_id = referenceless_event_sort(
+            self.data[time_axis].to_numpy(), build_window
+        )
+        col_name = "event_" + self.name
+        self.data[col_name] = evt_id
         self.data["multiplicity"] = 1
         self.data["multiplicity"] = self.data.groupby("local_event")[
             "multiplicity"
