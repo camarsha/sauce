@@ -77,7 +77,7 @@ class Detector:
         )
 
     def _hits_from_run(self, run_obj, module, channel):
-        df = run_obj.df
+        df = run_obj.data
 
         # pull the relevant data
         self.data = df.loc[
@@ -166,8 +166,8 @@ class Detector:
     def __getitem__(self, item):
         return self.data.__getitem__(item)
 
-    def __setitem__(self, item):
-        return self.data.__setitem__(item)
+    def __setitem__(self, item, value):
+        return self.data.__setitem__(item, value)
 
     def __invert__(self):
         self.coin = not self.coin
