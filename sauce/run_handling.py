@@ -16,4 +16,4 @@ class Run:
         if ".parquet" in filename:
             self.data = pl.read_parquet(filename).to_pandas()  # x15 faster
         if ".feather" in filename:
-            self.data = pl.read_ipc(filename).to_pandas()  # x15 faster
+            self.data = pd.read_feather(filename)  # x15 faster
