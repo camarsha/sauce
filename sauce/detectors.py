@@ -24,15 +24,14 @@ class Detector:
     """
 
     def __init__(self, crate, slot, channel, name):
-
         self.crate = crate
         self.slot = slot
         self.channel = channel
         self.name = name
         self.data = None
+        self.coin = True  # flag for coincidence
 
     def find_events(self, full_run_data):
-
         """
         After more usage, I think it is useful to either
         load the entire run (detailed analysis) or
@@ -71,7 +70,6 @@ class Detector:
 
     def _events_from_h5(self, h5_filename):
         with tb.open_file(h5_filename, "r") as f:
-
             # string for the query
             where_str = (
                 "( crate == "
@@ -157,6 +155,13 @@ class Detector:
     def __getitem__(self, item):
         return self.data.__getitem__(item)
 
+    def __setitem__(self, item, value):
+        return self.data.__setitem__(item, value)
+
+    def __invert__(self):
+        self.coin = not self.coin
+        return self
+
     def copy(self):
         """Copy data from detector into new detector instance.
 
@@ -224,9 +229,9 @@ class DSSD(Detector):
         self.crate = 0
         self.slot = 0
         self.channel = 0
+        self.coin = True
 
     def find_events(self, full_run_data):
-
         print("Finding " + self.name + " events")
 
         # assign the data, results from map are in original order
