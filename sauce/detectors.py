@@ -208,9 +208,41 @@ class Detector:
         col_name = "event_" + self.name
         self.data[col_name] = evt_id
         self.data["multiplicity"] = 1
-        self.data["multiplicity"] = self.data.groupby("local_event")[
+        self.data["multiplicity"] = self.data.groupby(col_name)[
             "multiplicity"
         ].transform("count")
+
+    def save_detector(self, filename, file_type="parquet"):
+
+        if file_type == "parquet":
+            self.data.to_parquet(filename, index=False)
+        elif file_type == "feather":
+            self.data.to_feather(filename, index=False)
+        elif file_type == "csv":
+            self.data.to_csv(filename, index=False)
+        else:
+            print(
+                "File type {} not recongnized. Try: parquet, feather, or csv.".format(
+                    file_type
+                )
+            )
+
+    def load_detector(self, filename):
+
+        file_type = filename.split(".")[1]
+
+        if file_type == "parquet":
+            self.data.to_parquet(filename, index=False)
+        elif file_type == "feather":
+            self.data.to_feather(filename, index=False)
+        elif file_type == "csv":
+            self.data.to_csv(filename, index=False)
+        else:
+            print(
+                "File type {} not recongnized. Try: parquet, feather, or csv.".format(
+                    file_type
+                )
+            )
 
 
 def detector_union(name, *dets, by="evt_ts"):
