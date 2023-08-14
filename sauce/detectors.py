@@ -212,7 +212,7 @@ class Detector:
             "multiplicity"
         ].transform("count")
 
-    def save_detector(self, filename, file_type="parquet"):
+    def save(self, filename, file_type="parquet"):
 
         if file_type == "parquet":
             self.data.to_parquet(filename, index=False)
@@ -227,7 +227,7 @@ class Detector:
                 )
             )
 
-    def load_detector(self, filename):
+    def load(self, filename):
 
         file_type = filename.split(".")[1]
 
