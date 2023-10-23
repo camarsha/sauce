@@ -213,7 +213,6 @@ class Detector:
         ].transform("count")
 
     def save(self, filename, file_type="parquet"):
-
         if file_type == "parquet":
             self.data.to_parquet(filename, index=False)
         elif file_type == "feather":
@@ -228,15 +227,14 @@ class Detector:
             )
 
     def load(self, filename):
-
-        file_type = filename.split(".")[1]
+        file_type = filename.split(".")[-1]
 
         if file_type == "parquet":
-            self.data.to_parquet(filename, index=False)
+            self.data = pd.read_parquet(filename)
         elif file_type == "feather":
-            self.data.to_feather(filename, index=False)
+            self.data = pd.read_feather(filename)
         elif file_type == "csv":
-            self.data.to_csv(filename, index=False)
+            self.data = pd.read_csv(filename)
         else:
             print(
                 "File type {} not recongnized. Try: parquet, feather, or csv.".format(
