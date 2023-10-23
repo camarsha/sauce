@@ -48,9 +48,9 @@ def eff(det1, det2):
     return e_1 / e_2
 
 
-def gate2d(x, y, points, bins=[1024, 300]):
+def gate2d(x, y, points, **kwargs):
     fig, ax = plt.subplots()
-    ax.hist2d(x, y, bins=bins, cmin=1, range=[[0, x.max() + 5], [0, 35000]])
+    ax.hist2d(x, y, **kwargs)
     path = Path(points, closed=True)
     patch = patches.PathPatch(path, facecolor="r", alpha=0.2)
     ax.add_patch(patch)
