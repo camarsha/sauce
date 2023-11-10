@@ -5,6 +5,19 @@ import matplotlib.patches as patches
 import os
 
 
+def step(x, y, **step_kwargs):
+    """The default step drawing will appear incorrect
+    without where = "post". Note that the data is the
+    same in both cases, this is just to make the plots appear correct.
+
+    :param x:
+    :param y:
+    :returns:
+
+    """
+    plt.step(x, y, where="post", **step_kwargs)
+
+
 def hist2d(x, y, **kwargs):
     """
     This is so that 2d histograms can

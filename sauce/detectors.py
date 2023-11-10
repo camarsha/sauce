@@ -4,12 +4,14 @@ This file helps map the data to actual detectors and group them.
 -Caleb Marshall, Ohio University 2022
 """
 
+from numba.core.compiler import Option
 import numpy as np
 from matplotlib.path import Path
 from .run_handling import Run
 import numba as nb
 import pandas as pd
 import polars as pl
+from typing import Optional
 
 
 @nb.njit
@@ -48,7 +50,7 @@ class Detector:
     def __init__(self, name, primary_axis="adc"):
         # must initialize the dataframe first to stop recursion error
         self.name = name
-        self.primary_axis = "adc"
+        self.primary_axis = primary_axis
         self.data = None
         self.coin = True
 
@@ -64,59 +66,52 @@ class Detector:
         """
 
         if isinstance(run_data, Run):
-            self._hits_from_run(run_data, module_id, channel)
+            self.data = self._hits_from_run(run_data, module_id, channel)
         elif isinstance(run_data, str):
-            self._hits_from_str(run_data, module_id, channel)
+            self.data = self._hits_from_str(run_data, module_id, channel)
         else:
             print("Only Run objects or csv_file paths accepted!")
-        # drop useless columns and sort the timestamps
-        self.data = (
-            self.data.drop(columns=["module", "channel"])
-            .reset_index(drop=True)
-            .sort_values(by="evt_ts")
-        )
+        return self
 
     def _hits_from_run(self, run_obj, module, channel):
         df = run_obj.data
 
         # pull the relevant data
-        self.data = df.loc[
-            (df["module"] == module) & (df["channel"] == channel)
-        ]
+        return df.filter(
+            (pl.col("module") == module) & (pl.col("channel") == channel)
+        ).drop("module", "channel")
 
     def _hits_from_str(self, run_str, module, channel):
         # pull the data
         if ".csv" in run_str:
-            self.data = (
+            return (
                 pl.scan_csv(run_str)
                 .filter(
                     (pl.col("module") == module)
                     & (pl.col("channel") == channel)
                 )
                 .collect(streaming=True)
-                .to_pandas()
             )
         if ".parquet" in run_str:
-            self.data = (
+            return (
                 pl.scan_parquet(run_str)
                 .filter(
                     (pl.col("module") == module)
                     & (pl.col("channel") == channel)
                 )
                 .collect(streaming=True)
-                .to_pandas()
             )
 
         if ".feather" in run_str:
-            self.data = (
+            return (
                 pl.scan_ipc(run_str)
                 .filter(
                     (pl.col("module") == module)
                     & (pl.col("channel") == channel)
                 )
                 .collect(streaming=True)
-                .to_pandas()
             )
+        raise (FileNotFoundError)
 
     def _axis_cond(self, axis):
         if axis == None:
@@ -126,13 +121,15 @@ class Detector:
 
     def apply_threshold(self, threshold, axis=None):
         axis = self._axis_cond(axis)
-        self.data = self.data[self.data[axis] > threshold]
+        self.data = self.data.filter(self.data[axis] > threshold)
+        return self
 
     def apply_cut(self, cut, axis=None):
         axis = self._axis_cond(axis)
-        self.data = self.data.loc[
+        self.data = self.data.filter(
             (self.data[axis] > cut[0]) & (self.data[axis] < cut[1])
-        ]
+        )
+        return self
 
     def apply_poly_cut(self, cut2d, gate_name=None):
         """
@@ -145,7 +142,8 @@ class Detector:
 
         poly = Path(points, closed=True)
         results = poly.contains_points(self.data[[x_axis, y_axis]])
-        self.data = self.data[results]
+        self.data = self.data.filter(results)
+        return self
 
     def hist(self, lower, upper, bins, axis=None, centers=True):
         """
@@ -180,7 +178,7 @@ class Detector:
 
         """
         new_det = Detector(self.name)
-        new_det.data = self.data.copy(deep=True)
+        new_det.data = self.data.clone()
         return new_det
 
     def tag(self, tag, tag_name="tag"):
@@ -193,8 +191,10 @@ class Detector:
         :returns:
 
         """
-        self.data[tag_name] = tag
+        self.data = self.data.with_columns(pl.lit(tag).alias(tag_name))
+        return self
 
+    # TODO Conversion to polars
     def build_referenceless_events(self, build_window, time_axis="evt_ts"):
         """Assign event numbers to the detector
         based on just the detectors hits. Also
@@ -211,39 +211,42 @@ class Detector:
         self.data["multiplicity"] = self.data.groupby(col_name)[
             "multiplicity"
         ].transform("count")
+        return self
 
     def save(self, filename, file_type="parquet"):
         if file_type == "parquet":
-            self.data.to_parquet(filename, index=False)
+            self.data.write_parquet(filename, index=False)
         elif file_type == "feather":
-            self.data.to_feather(filename, index=False)
+            self.data.write_ipc(filename, index=False)
         elif file_type == "csv":
-            self.data.to_csv(filename, index=False)
+            self.data.write_csv(filename, index=False)
         else:
             print(
                 "File type {} not recongnized. Try: parquet, feather, or csv.".format(
                     file_type
                 )
             )
+        return self
 
     def load(self, filename):
         file_type = filename.split(".")[-1]
 
         if file_type == "parquet":
-            self.data = pd.read_parquet(filename)
+            self.data = pl.read_parquet(filename)
         elif file_type == "feather":
-            self.data = pd.read_feather(filename)
+            self.data = pl.read_ipc(filename)
         elif file_type == "csv":
-            self.data = pd.read_csv(filename)
+            self.data = pl.read_csv(filename)
         else:
             print(
                 "File type {} not recongnized. Try: parquet, feather, or csv.".format(
                     file_type
                 )
             )
+        return self
 
 
-def detector_union(name, *dets, by="evt_ts"):
+def detector_union(name, *dets, on="evt_ts"):
     """Union different detectors if into a
     new detector called "name"
 
@@ -251,7 +254,6 @@ def detector_union(name, *dets, by="evt_ts"):
     :returns: Detector object
 
     """
-    frame = [d.data for d in dets]
     new_det = Detector(name)
-    new_det.data = pd.concat(frame, ignore_index=True).sort_values(by=by)
+    new_det.data = pl.concat([d.data for d in dets]).sort(on)
     return new_det
