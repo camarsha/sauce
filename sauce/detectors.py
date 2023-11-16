@@ -165,7 +165,8 @@ class Detector:
         return self.data.__getitem__(item)
 
     def __setitem__(self, item, value):
-        return self.data.__setitem__(item, value)
+        self.data = self.data.with_columns(pl.lit(value).alias(item))
+        return self.data
 
     def __invert__(self):
         self.coin = not self.coin
@@ -206,11 +207,26 @@ class Detector:
             self.data[time_axis].to_numpy(), build_window
         )
         col_name = "event_" + self.name
-        self.data[col_name] = evt_id
-        self.data["multiplicity"] = 1
-        self.data["multiplicity"] = self.data.groupby(col_name)[
-            "multiplicity"
-        ].transform("count")
+        # add event id column
+        self.data = self.data.with_columns(
+            pl.lit(evt_id).cast(pl.UInt64).alias(col_name)
+        )
+        # we create a column of 1s, count them (i.e make a sum) over the groups of local events
+        # finally puttin the results in multiplicity and modifying the original data frame.
+        self.data = self.data.with_columns(
+            pl.lit(1, dtype=pl.UInt16).alias("multiplicity")
+        )
+
+        self.data = (
+            self.data.lazy()
+            .with_columns(
+                pl.col("multiplicity")
+                .count()
+                .over(col_name)
+                .alias("multiplicity")
+            )
+            .collect()
+        )
         return self
 
     def save(self, filename, file_type="parquet"):
