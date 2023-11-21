@@ -51,7 +51,7 @@ def find_coincident_events(A, B, C):
 
 
 @nb.njit
-def assign_event(hit_index, lower, upper, data):
+def assign_event_index(hit_index, lower, upper, data):
     """
     :param hit_index:
     :param lower:
@@ -62,11 +62,12 @@ def assign_event(hit_index, lower, upper, data):
     event_number = np.empty(len(data))
     event_number[:] = np.nan
     start_index = 0
+    len_data = len(data)
     for i in range(len(hit_index)):
         hit_num = hit_index[i]
         l = lower[hit_num]
         h = upper[hit_num]
-        for j in range(start_index, len(data)):
+        for j in range(start_index, len_data):
             if l <= data[j] <= h:
                 event_number[j] = hit_num
             elif data[j] < l:
@@ -111,8 +112,12 @@ class EventBuilder:
         """
         if isinstance(det, detectors.Detector):
             timestamps = det.data[time_axis].to_numpy()
-        elif isinstance(det, pd.Series):
+        elif isinstance(det, pl.Series):
             timestamps = det.to_numpy()
+        else:
+            raise TypeError(
+                "Must pass either a sauce.Detector or polars.Series instance."
+            )
         self.timestamps = np.concatenate((self.timestamps, timestamps))
         # make sure it is sorted
         self.timestamps = np.sort(self.timestamps)
@@ -159,11 +164,11 @@ class EventBuilder:
         """
         self.livetime = self.reduced_len / self.pre_reduced_len
 
-    def filter_data(self, det, time_axis="evt_ts"):
+    def assign_events_to_detector_and_drop(self, det, time_axis="evt_ts"):
         """
         For the given detector, look at each event and see if it can be assigned
         to an event based on the time stamp array. Keep only the hit with the earliest timestamp.
-        Modifies detector in place.
+
         :param det: instance of detectors.Detector
         :returns: time filtered detectors.Detector
         """
@@ -176,20 +181,26 @@ class EventBuilder:
         hit_index = np.arange(len(self.lower))[mask]
 
         # assign event numbers to every event (if no event give NaN)
-        event_number = assign_event(
+        event_number = assign_event_index(
             hit_index, self.lower, self.upper, det_times
         )
-        det.data["event"] = event_number
+
+        det.data = (
+            det.data.lazy()
+            .with_columns(pl.lit(event_number).alias("event"))
+            .filter(~pl.col("event").is_nan())
+            .unique(subset=["event"], keep="first", maintain_order=True)
+            .collect()
+        )
 
         # drop duplicate events keep first timestamp
-        det.data = det.data.drop_duplicates("event", keep="first")
-
         after_len = len(det.data)
         det.livetime = after_len / before_len
 
         return det
 
 
+# TODO: Finally make this the class of your dreams.
 class Coincident:
     def __init__(self, ref_det_eb):
         """This has been reworked to because the
@@ -204,8 +215,8 @@ class Coincident:
 
         """
         self.eb = None
-        self.data = pd.DataFrame({"event": ref_det_eb.event_numbers.copy()})
-        self.eb = ref_det_eb
+        self.data = pl.DataFrame({"event": ref_det_eb.event_numbers.copy()})
+        self.eb: EventBuilder = ref_det_eb
         self.det_names = []
         self.det_columns = {}
 
@@ -238,7 +249,7 @@ class Coincident:
 
             # create a copy so we can destructively alter every thing
             det = det.copy()
-            self.eb.filter_data(det)
+            self.eb.assign_events_to_detector_and_drop(det)
 
             # rename the detector columns
             new_names = {}
@@ -289,7 +300,7 @@ class Coincident:
             # reset the coin slot so we can use ~ again
             det.coin = not det.coin
             # return the anticoincidences
-            return self.data[axis].isnull()
+            return self.data[axis].null()
 
     def create_intersection(self, *dets):
         """Given all these detectors return
