@@ -7,7 +7,8 @@ This file helps map the data to actual detectors and group them.
 from numba.core.compiler import Option
 import numpy as np
 from matplotlib.path import Path
-from .run_handling import Run
+
+# from .run_handling import Run
 import numba as nb
 import pandas as pd
 import polars as pl
@@ -195,7 +196,6 @@ class Detector:
         self.data = self.data.with_columns(pl.lit(tag).alias(tag_name))
         return self
 
-    # TODO Conversion to polars
     def build_referenceless_events(self, build_window, time_axis="evt_ts"):
         """Assign event numbers to the detector
         based on just the detectors hits. Also
@@ -215,7 +215,7 @@ class Detector:
         # finally puttin the results in multiplicity and modifying the original data frame.
         self.data = self.data.with_columns(
             pl.lit(1, dtype=pl.UInt16).alias("multiplicity")
-        )
+        )  # this needs to be a separate step because pl.lit needs to turn into a column first
 
         self.data = (
             self.data.lazy()
