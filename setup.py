@@ -10,7 +10,7 @@ setup(
     install_requires=[
         "numpy",
         "modin",
-        "pandas",
+        "polars > 0.19",
         "matplotlib",
         "tables",
         "numba",
