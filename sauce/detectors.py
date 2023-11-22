@@ -7,8 +7,7 @@ This file helps map the data to actual detectors and group them.
 from numba.core.compiler import Option
 import numpy as np
 from matplotlib.path import Path
-
-# from .run_handling import Run
+from .run_handling import Run
 import numba as nb
 import pandas as pd
 import polars as pl
@@ -53,7 +52,7 @@ class Detector:
         self.name = name
         self.primary_axis = primary_axis
         self.data = None
-        self.coin = True
+        self._coin = True
 
     def find_hits(self, run_data, module_id, channel):
         """
@@ -91,6 +90,7 @@ class Detector:
                     (pl.col("module") == module)
                     & (pl.col("channel") == channel)
                 )
+                .drop("module", "channel")
                 .collect(streaming=True)
             )
         if ".parquet" in run_str:
@@ -100,6 +100,7 @@ class Detector:
                     (pl.col("module") == module)
                     & (pl.col("channel") == channel)
                 )
+                .drop("module", "channel")
                 .collect(streaming=True)
             )
 
@@ -110,6 +111,7 @@ class Detector:
                     (pl.col("module") == module)
                     & (pl.col("channel") == channel)
                 )
+                .drop("module", "channel")
                 .collect(streaming=True)
             )
         raise (FileNotFoundError)
@@ -170,8 +172,24 @@ class Detector:
         return self.data
 
     def __invert__(self):
-        self.coin = not self.coin
+        self._coin = False
         return self
+
+    def get_coin(self):
+        """Returns the current value of
+        coin, and then resets it to True.
+
+        If you are constructing anti-coincidences, this
+        makes sure that you will always have self.__coin = True
+        unless you have just called the ~ operator.
+
+        :returns:
+
+        """
+
+        val = self._coin
+        self._coin = True
+        return val
 
     def copy(self):
         """Copy data from detector into new detector instance.
