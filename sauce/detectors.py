@@ -74,12 +74,15 @@ class Detector:
         return self
 
     def _hits_from_run(self, run_obj, module, channel):
-        df = run_obj.data
-
         # pull the relevant data
-        return df.filter(
-            (pl.col("module") == module) & (pl.col("channel") == channel)
-        ).drop("module", "channel")
+        return (
+            run_obj.data.lazy()
+            .filter(
+                (pl.col("module") == module) & (pl.col("channel") == channel)
+            )
+            .drop("module", "channel")
+            .collect()
+        )
 
     def _hits_from_str(self, run_str, module, channel):
         # pull the data
