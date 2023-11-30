@@ -71,6 +71,7 @@ class Detector:
             self.data = self._hits_from_str(run_data, module_id, channel)
         else:
             print("Only Run objects or csv_file paths accepted!")
+        self.data = self.data.sort(by="evt_ts")
         return self
 
     def _hits_from_run(self, run_obj, module, channel):
@@ -292,5 +293,5 @@ def detector_union(name, *dets, on="evt_ts"):
 
     """
     new_det = Detector(name)
-    new_det.data = pl.concat([d.data for d in dets]).sort(on)
+    new_det.data = pl.concat([d.data.lazy() for d in dets]).sort(on).collect()
     return new_det

@@ -16,3 +16,4 @@ class Run:
             self.data = pl.read_parquet(filename)
         if ".feather" in filename:
             self.data = pl.read_ipc(filename)
+        self.data = self.data.sort(by="evt_ts")
