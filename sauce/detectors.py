@@ -8,8 +8,8 @@ from numba.core.compiler import Option
 import numpy as np
 from matplotlib.path import Path
 from .run_handling import Run
+from . import config
 import numba as nb
-import pandas as pd
 import polars as pl
 from typing import Optional
 
@@ -47,14 +47,29 @@ def referenceless_event_sort(times, build_window):
 class Detector:
     """Class to hold data relevant to the specific channel."""
 
-    def __init__(self, name, primary_axis="adc"):
+    def __init__(
+        self,
+        name,
+        primary_energy_axis=None,
+        primary_time_axis=None,
+    ):
         # must initialize the dataframe first to stop recursion error
         self.name = name
-        self.primary_axis = primary_axis
-        self.data = None
+        self.primary_energy_axis = (
+            primary_energy_axis
+            if primary_energy_axis
+            else config.default_energy_axis
+        )
+        self.primary_time_axis = (
+            primary_time_axis if primary_time_axis else config.default_time_axis
+        )
+        self.data = pl.DataFrame()
         self._coin = True
+        # Used by the context manager to assign a copy of data during the
+        # context block and then update data afterwards.
+        self.temp_data = None
 
-    def find_hits(self, run_data, module_id, channel):
+    def find_hits(self, run_data, **kwargs):
         """
         After more usage, I think it is useful to either
         load the entire run (detailed analysis) or
@@ -66,63 +81,49 @@ class Detector:
         """
 
         if isinstance(run_data, Run):
-            self.data = self._hits_from_run(run_data, module_id, channel)
+            self.data = self._hits_from_run(run_data, **kwargs)
         elif isinstance(run_data, str):
-            self.data = self._hits_from_str(run_data, module_id, channel)
+            self.data = self._hits_from_str(run_data, **kwargs)
         else:
             print("Only Run objects or csv_file paths accepted!")
-        self.data = self.data.sort(by="evt_ts")
+        self.data = self.data.sort(by=self.primary_time_axis)
         return self
 
-    def _hits_from_run(self, run_obj, module, channel):
+    def _hits_from_run(self, run_obj, **kwargs):
         # pull the relevant data
         return (
             run_obj.data.lazy()
-            .filter(
-                (pl.col("module") == module) & (pl.col("channel") == channel)
-            )
-            .drop("module", "channel")
+            .filter(**kwargs)
+            .drop([k for k, _ in kwargs.items()])
             .collect()
         )
 
-    def _hits_from_str(self, run_str, module, channel):
+    def _hits_from_str(self, run_str, **kwargs):
         # pull the data
+        temp_scan = None
         if ".csv" in run_str:
-            return (
-                pl.scan_csv(run_str)
-                .filter(
-                    (pl.col("module") == module)
-                    & (pl.col("channel") == channel)
-                )
-                .drop("module", "channel")
-                .collect(streaming=True)
-            )
-        if ".parquet" in run_str:
-            return (
-                pl.scan_parquet(run_str)
-                .filter(
-                    (pl.col("module") == module)
-                    & (pl.col("channel") == channel)
-                )
-                .drop("module", "channel")
-                .collect(streaming=True)
-            )
-
-        if ".feather" in run_str:
-            return (
-                pl.scan_ipc(run_str)
-                .filter(
-                    (pl.col("module") == module)
-                    & (pl.col("channel") == channel)
-                )
-                .drop("module", "channel")
-                .collect(streaming=True)
-            )
-        raise (FileNotFoundError)
+            temp_scan = pl.scan_csv(run_str)
+        elif ".parquet" in run_str:
+            temp_scan = pl.scan_parquet(run_str)
+        elif ".feather" in run_str:
+            temp_scan = pl.scan_ipc(run_str)
+        else:
+            raise (FileNotFoundError)
+        return (
+            temp_scan.filter(**kwargs)
+            .drop([k for k, _ in kwargs.items()])
+            .collect(streaming=True)
+        )
 
     def _axis_cond(self, axis):
         if axis == None:
-            return self.primary_axis
+            return self.primary_energy_axis
+        else:
+            return axis
+
+    def _time_axis_cond(self, axis):
+        if axis == None:
+            return self.primary_time_axis
         else:
             return axis
 
@@ -138,7 +139,7 @@ class Detector:
         )
         return self
 
-    def apply_poly_cut(self, cut2d, gate_name=None):
+    def apply_poly_cut(self, cut2d):
         """
         Apply a 2D polygon cut to the data. Gate info is
         found in Gate2D object found in sauce.gates
@@ -218,13 +219,14 @@ class Detector:
         self.data = self.data.with_columns(pl.lit(tag).alias(tag_name))
         return self
 
-    def build_referenceless_events(self, build_window, time_axis="evt_ts"):
+    def build_referenceless_events(self, build_window, axis=None):
         """Assign event numbers to the detector
         based on just the detectors hits. Also
         give the multiplicity of the event
         :param build_window: build window in ns.
         :returns:
         """
+        time_axis = self._time_axis_cond(axis)
         evt_id = referenceless_event_sort(
             self.data[time_axis].to_numpy(), build_window
         )
@@ -253,11 +255,11 @@ class Detector:
 
     def save(self, filename, file_type="parquet"):
         if file_type == "parquet":
-            self.data.write_parquet(filename, index=False)
+            self.data.write_parquet(filename)
         elif file_type == "feather":
-            self.data.write_ipc(filename, index=False)
+            self.data.write_ipc(filename)
         elif file_type == "csv":
-            self.data.write_csv(filename, index=False)
+            self.data.write_csv(filename)
         else:
             print(
                 "File type {} not recongnized. Try: parquet, feather, or csv.".format(
@@ -282,6 +284,13 @@ class Detector:
                 )
             )
         return self
+
+    def counts(self):
+        """Returns the number of rows in the data frame"""
+        return len(self.data)
+
+    def __len__(self):
+        return len(self.data)
 
 
 def detector_union(name, *dets, on="evt_ts"):

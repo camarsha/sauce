@@ -22,9 +22,7 @@ def hist2d(x, y, **kwargs):
     This is so that 2d histograms can
     be generated uniformly in style
     """
-    plt.hist2d(
-        x, y, cmin=1, cmap="viridis", bins=1024, range=[[0, 32000], [0, 32000]]
-    )
+    plt.hist2d(x, y, cmin=1, cmap="viridis", **kwargs)
 
 
 def eff(det1, det2):
@@ -37,10 +35,10 @@ def eff(det1, det2):
     return e_1 / e_2
 
 
-def gate2d(x, y, points, **kwargs):
+def gate2d(x, y, gate, **kwargs):
     fig, ax = plt.subplots()
     ax.hist2d(x, y, **kwargs)
-    path = Path(points, closed=True)
+    path = Path(gate.points, closed=True)
     patch = patches.PathPatch(path, facecolor="r", alpha=0.2)
     ax.add_patch(patch)
 

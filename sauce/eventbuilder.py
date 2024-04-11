@@ -2,10 +2,7 @@ import polars as pl
 import numpy as np
 import numba as nb
 from . import detectors
-
-"""
-Stripped down version of the original, since mdpps already have events built in.
-"""
+from . import config
 
 
 @nb.njit
@@ -104,14 +101,15 @@ class EventBuilder:
         self.timestamps = []
         self.event_numbers = []
 
-    def add_timestamps(self, det, time_axis="evt_ts"):
+    def add_timestamps(self, det, axis=None):
         """Add the timestamps of the given detector to
         the event builder logic.
         :param det: instance of detectors.Detector
         :returns:
         """
+        axis = axis if axis else config.default_time_axis
         if isinstance(det, detectors.Detector):
-            timestamps = det.data[time_axis].to_numpy()
+            timestamps = det.data[axis].to_numpy()
         elif isinstance(det, pl.Series):
             timestamps = det.to_numpy()
         else:
@@ -166,7 +164,7 @@ class EventBuilder:
         """
         self.livetime = self.reduced_len / self.pre_reduced_len
 
-    def assign_events_to_detector_and_drop(self, det, time_axis="evt_ts"):
+    def assign_events_to_detector_and_drop(self, det, axis=None):
         """
         For the given detector, look at each event and see if it can be assigned
         to an event based on the time stamp array. Keep only the hit with the earliest timestamp.
@@ -174,7 +172,8 @@ class EventBuilder:
         :param det: instance of detectors.Detector
         :returns: time filtered detectors.Detector
         """
-        det_times = det.data[time_axis].to_numpy()
+        axis = axis if axis else config.default_time_axis
+        det_times = det.data[axis].to_numpy()
 
         before_len = len(det.data)
 
@@ -229,7 +228,6 @@ class Coincident:
             )
             # we do inner joins unless we asked for anti-coincidence
             how_type = "anti" if not det.get_coin() else "inner"
-            print(how_type)
             new_det.data = new_det.data.join(
                 temp_det.data,
                 on="event",
