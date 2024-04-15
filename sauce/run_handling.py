@@ -1,14 +1,17 @@
 import polars as pl
+from . import config
+from typing import Optional
 
 
 class Run:
 
     """
-    The Lena version of sauce is much simpler at the
-    moment due to the mdpp16 being simpler than pxi16.
+    This loads in an entire run to memory to improve the
+    speed at which Detector objects can be created. It also
+    sorts the run by time stamps
     """
 
-    def __init__(self, filename, mode="r", load=True):
+    def __init__(self, filename, primary_time_axis: Optional[str] = None):
         self.filename = filename
         if ".csv" in filename:
             self.data = pl.read_csv(filename)
@@ -16,4 +19,6 @@ class Run:
             self.data = pl.read_parquet(filename)
         if ".feather" in filename:
             self.data = pl.read_ipc(filename)
-        self.data = self.data.sort(by="evt_ts")
+        if not primary_time_axis:
+            primary_time_axis = config.default_time_axis
+        self.data = self.data.sort(by=primary_time_axis)

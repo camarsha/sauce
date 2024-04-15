@@ -4,18 +4,20 @@ This file helps map the data to actual detectors and group them.
 -Caleb Marshall, Ohio University 2022
 """
 
-from numba.core.compiler import Option
 import numpy as np
 from matplotlib.path import Path
+from numpy.typing import NDArray
 from .run_handling import Run
 from . import config
+from . import gates
 import numba as nb
 import polars as pl
-from typing import Optional
+from typing import Any, Optional, Type, Sequence, Union
+from typing_extensions import Self
 
 
 @nb.njit
-def referenceless_event_sort(times, build_window):
+def referenceless_event_sort(times, build_window) -> NDArray[np.float64]:
     """Produce an array with event number.
 
     The event number is based on a simple build
@@ -49,9 +51,9 @@ class Detector:
 
     def __init__(
         self,
-        name,
-        primary_energy_axis=None,
-        primary_time_axis=None,
+        name: str,
+        primary_energy_axis: Optional[str] = None,
+        primary_time_axis: Optional[str] = None,
     ):
         # must initialize the dataframe first to stop recursion error
         self.name = name
@@ -65,11 +67,9 @@ class Detector:
         )
         self.data = pl.DataFrame()
         self._coin = True
-        # Used by the context manager to assign a copy of data during the
-        # context block and then update data afterwards.
-        self.temp_data = None
+        self.livetime = 1.0
 
-    def find_hits(self, run_data, **kwargs):
+    def find_hits(self, run_data: Union[str, Run], **kwargs) -> Self:
         """
         After more usage, I think it is useful to either
         load the entire run (detailed analysis) or
@@ -89,7 +89,7 @@ class Detector:
         self.data = self.data.sort(by=self.primary_time_axis)
         return self
 
-    def _hits_from_run(self, run_obj, **kwargs):
+    def _hits_from_run(self, run_obj: Run, **kwargs) -> pl.DataFrame:
         # pull the relevant data
         return (
             run_obj.data.lazy()
@@ -98,7 +98,7 @@ class Detector:
             .collect()
         )
 
-    def _hits_from_str(self, run_str, **kwargs):
+    def _hits_from_str(self, run_str: str, **kwargs) -> pl.DataFrame:
         # pull the data
         temp_scan = None
         if ".csv" in run_str:
@@ -115,31 +115,35 @@ class Detector:
             .collect(streaming=True)
         )
 
-    def _axis_cond(self, axis):
+    def _axis_cond(self, axis: Optional[str]) -> str:
         if axis == None:
             return self.primary_energy_axis
         else:
             return axis
 
-    def _time_axis_cond(self, axis):
+    def _time_axis_cond(self, axis: Optional[str]) -> str:
         if axis == None:
             return self.primary_time_axis
         else:
             return axis
 
-    def apply_threshold(self, threshold, axis=None):
+    def apply_threshold(
+        self, threshold: float, axis: Optional[str] = None
+    ) -> Self:
         axis = self._axis_cond(axis)
         self.data = self.data.filter(self.data[axis] > threshold)
         return self
 
-    def apply_cut(self, cut, axis=None):
+    def apply_cut(
+        self, cut: Sequence[float], axis: Optional[str] = None
+    ) -> Self:
         axis = self._axis_cond(axis)
         self.data = self.data.filter(
             (self.data[axis] > cut[0]) & (self.data[axis] < cut[1])
         )
         return self
 
-    def apply_poly_cut(self, cut2d):
+    def apply_poly_cut(self, cut2d: gates.Gate2D) -> Self:
         """
         Apply a 2D polygon cut to the data. Gate info is
         found in Gate2D object found in sauce.gates
@@ -153,7 +157,14 @@ class Detector:
         self.data = self.data.filter(results)
         return self
 
-    def hist(self, lower, upper, bins, axis=None, centers=True):
+    def hist(
+        self,
+        lower: float,
+        upper: float,
+        bins: int,
+        axis: Optional[str] = None,
+        centers: bool = True,
+    ) -> tuple[NDArray[Any], NDArray[Any]]:
         """
         Return a histrogram of the given axis.
         """
@@ -164,23 +175,23 @@ class Detector:
         )
         # to make fitting data
         if centers:
-            centers = bin_edges[:-1]
-            return centers, counts
+            temp_centers = bin_edges[:-1]
+            return temp_centers, counts
         else:
             return counts, bin_edges
 
-    def __getitem__(self, item):
+    def __getitem__(self, item: str) -> pl.Series:
         return self.data.__getitem__(item)
 
-    def __setitem__(self, item, value):
+    def __setitem__(self, item: str, value: Any) -> pl.DataFrame:
         self.data = self.data.with_columns(pl.lit(value).alias(item))
         return self.data
 
-    def __invert__(self):
+    def __invert__(self) -> Self:
         self._coin = False
         return self
 
-    def get_coin(self):
+    def get_coin(self) -> bool:
         """Returns the current value of
         coin, and then resets it to True.
 
@@ -196,7 +207,7 @@ class Detector:
         self._coin = True
         return val
 
-    def copy(self):
+    def copy(self) -> Self:
         """Copy data from detector into new detector instance.
 
         :returns: Copied instance of detector
@@ -206,7 +217,7 @@ class Detector:
         new_det.data = self.data.clone()
         return new_det
 
-    def tag(self, tag, tag_name="tag"):
+    def tag(self, tag: Any, tag_name: str = "tag") -> Self:
         """Create a tag column in the dataframe.
         Examples could be run number, a simple index, or
         any other desired information.
@@ -219,7 +230,9 @@ class Detector:
         self.data = self.data.with_columns(pl.lit(tag).alias(tag_name))
         return self
 
-    def build_referenceless_events(self, build_window, axis=None):
+    def build_referenceless_events(
+        self, build_window: float, axis: Optional[str] = None
+    ) -> Self:
         """Assign event numbers to the detector
         based on just the detectors hits. Also
         give the multiplicity of the event
@@ -253,7 +266,7 @@ class Detector:
         )
         return self
 
-    def save(self, filename, file_type="parquet"):
+    def save(self, filename, file_type: str = "parquet") -> Self:
         if file_type == "parquet":
             self.data.write_parquet(filename)
         elif file_type == "feather":
@@ -268,7 +281,7 @@ class Detector:
             )
         return self
 
-    def load(self, filename):
+    def load(self, filename) -> Self:
         file_type = filename.split(".")[-1]
 
         if file_type == "parquet":
@@ -285,15 +298,17 @@ class Detector:
             )
         return self
 
-    def counts(self):
+    def counts(self) -> int:
         """Returns the number of rows in the data frame"""
         return len(self.data)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.data)
 
 
-def detector_union(name, *dets, on="evt_ts"):
+def detector_union(
+    name: str, *dets: Detector, on: Optional[str] = None
+) -> Detector:
     """Union different detectors if into a
     new detector called "name"
 
@@ -301,6 +316,8 @@ def detector_union(name, *dets, on="evt_ts"):
     :returns: Detector object
 
     """
+    if not on:
+        on = config.default_time_axis
     new_det = Detector(name)
     new_det.data = pl.concat([d.data.lazy() for d in dets]).sort(on).collect()
     return new_det

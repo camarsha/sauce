@@ -3,14 +3,15 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "lena-sauce"
+name = "sauce"
 authors = [
      {name = "Caleb Marshall", email="camarsha@unc.edu"}
 ]
-version = "0.6"
+version = "1.0"
 dependencies = [
     "numpy",
     "polars > 0.19",
     "matplotlib"    ,
     "numba",
+    "typing_extensions",
 ]

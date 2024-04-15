@@ -1,12 +1,15 @@
+from numpy.typing import NDArray
 import polars as pl
 import numpy as np
 import numba as nb
 from . import detectors
 from . import config
+from typing import Any, Optional, Union
+from typing_extensions import Self
 
 
 @nb.njit
-def reduce_intervals(low, high):
+def reduce_intervals(low: NDArray[Any], high: NDArray[Any]) -> list[Any]:
     """
     Help create arrays that define
     closed, disjoint intervals.
@@ -34,7 +37,9 @@ def reduce_intervals(low, high):
 
 
 @nb.njit
-def find_coincident_events(A, B, C):
+def find_coincident_events(
+    A: NDArray[Any], B: NDArray[Any], C: NDArray[Any]
+) -> NDArray[np.bool_]:
     """
     taken from: https://stackoverflow.com/questions/43382056/detect-if-elements-are-within-pairs-of-interval-limits
     Find element of A and B such that C is C>=A and C<=B
@@ -48,7 +53,12 @@ def find_coincident_events(A, B, C):
 
 
 @nb.njit
-def assign_event_index(hit_index, lower, upper, data):
+def assign_event_index(
+    hit_index: NDArray[np.int_],
+    lower: NDArray[Any],
+    upper: NDArray[Any],
+    data,
+):
     """
     :param hit_index:
     :param lower:
@@ -121,7 +131,7 @@ class EventBuilder:
         self.timestamps = np.sort(self.timestamps)
         return self
 
-    def create_build_windows(self, low, high):
+    def create_build_windows(self, low: float, high: float) -> Self:
         """Call after all timestamps have been added. Method
         then constructs disjoint intervals with in
         :param low: lower bound of coincident window in nanoseconds
@@ -133,9 +143,13 @@ class EventBuilder:
             raise Exception(
                 "Invalid build window, high limit is less than low limit."
             )
+        if not self.timestamps:
+            raise Exception(
+                "No timestamps have been added. Call EventBuilder.add_timestamps first."
+            )
 
-        low_stamps = self.timestamps + low
-        high_stamps = self.timestamps + high
+        low_stamps = np.asarray(self.timestamps) + low
+        high_stamps = np.asarray(self.timestamps) + high
 
         self.pre_reduced_len = len(self.timestamps)
 
@@ -157,14 +171,17 @@ class EventBuilder:
             print("Warning dead time is greater than 10%!!")
         return self
 
-    def calc_livetime(self):
+    def calc_livetime(self) -> float:
         """Calculate the livetime of the eventbuilder instance, and
         assign the result to self.livetime
         :returns:
         """
         self.livetime = self.reduced_len / self.pre_reduced_len
+        return self.livetime
 
-    def assign_events_to_detector_and_drop(self, det, axis=None):
+    def assign_events_to_detector_and_drop(
+        self, det: detectors.Detector, axis: Optional[str] = None
+    ) -> detectors.Detector:
         """
         For the given detector, look at each event and see if it can be assigned
         to an event based on the time stamp array. Keep only the hit with the earliest timestamp.
@@ -172,6 +189,12 @@ class EventBuilder:
         :param det: instance of detectors.Detector
         :returns: time filtered detectors.Detector
         """
+
+        if not self.lower or not self.upper:
+            raise Exception(
+                "No build windows have been constructed. Call EventBuilder.create_build_windows first."
+            )
+
         axis = axis if axis else config.default_time_axis
         det_times = det.data[axis].to_numpy()
 
@@ -210,7 +233,7 @@ class Coincident:
         self.eb: EventBuilder = eb
 
     def create_coincidence(
-        self, *dets, coincident_detector_name=None
+        self, *dets: detectors.Detector, coincident_detector_name=None
     ) -> detectors.Detector:
         if not coincident_detector_name:
             coincident_detector_name = "_".join([det.name for det in dets])
@@ -236,13 +259,15 @@ class Coincident:
 
         return new_det
 
-    def __getitem__(self, key):
-        """I want to be able to select detectors based on Coincidence[det]
-        like syntax. These get items will return detector objects.
+    def __getitem__(
+        self, key: Union[detectors.Detector, tuple[detectors.Detector]]
+    ) -> detectors.Detector:
+        """Create specific coincident detectors using a syntax of Coincidence[det]
+
+        :param key: Detector objects.
+
         """
         # return a new instance of Coincidence
         if isinstance(key, tuple):
             return self.create_coincidence(*key)
-        if isinstance(key, slice):
-            return self.data[key]
         return self.create_coincidence(key)
