@@ -1,5 +1,5 @@
 * =sauce= - data frame analysis for low energy nuclear physics
-
+[[file:img/sauce-logo.png]]
 * Authors and Acknowledgments
 Caleb Marshall
 
