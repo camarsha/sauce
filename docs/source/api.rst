@@ -35,7 +35,7 @@ utils
 
 
 config
-=====
+======
 .. automodule:: sauce.config
     :members:
     :undoc-members:

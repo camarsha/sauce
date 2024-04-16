@@ -49,21 +49,6 @@ def referenceless_event_sort(times, build_window) -> NDArray[np.float64]:
 class Detector:
     """Class to hold data relevant to the specific channel."""
 
-<<<<<<< HEAD
-    """
-    Class to hold data relevant to the specific channel.
-    """
-
-    def __init__(self, crate, slot, channel, name):
-        self.crate = crate
-        self.slot = slot
-        self.channel = channel
-        self.name = name
-        self.data = None
-        self.coin = True  # flag for coincidence
-
-    def find_events(self, full_run_data):
-=======
     def __init__(
         self,
         name: str,
@@ -85,7 +70,6 @@ class Detector:
         self.livetime = 1.0
 
     def find_hits(self, run_data: Union[str, Run], **kwargs) -> Self:
->>>>>>> polars-conversion
         """
         After more usage, I think it is useful to either
         load the entire run (detailed analysis) or
@@ -114,48 +98,6 @@ class Detector:
             .collect()
         )
 
-<<<<<<< HEAD
-    def _events_from_h5(self, h5_filename):
-        with tb.open_file(h5_filename, "r") as f:
-            # string for the query
-            where_str = (
-                "( crate == "
-                + str(self.crate)
-                + ") & ( slot == "
-                + str(self.slot)
-                + ") & ( channel == "
-                + str(self.channel)
-                + ")"
-            )
-
-            table = f.root.raw_data.basic_info
-            traces = f.root.raw_data.trace_array
-            det_iter = table.where(where_str)
-
-            # list of tuples into dataframe
-            self.data = pd.DataFrame.from_records(
-                [x.fetch_all_fields() for x in det_iter], columns=table.colnames
-            )
-
-            if np.any(self.data["is_trace"]):
-                # traces are indexed from 1
-                self.data["trace"] = [
-                    traces[i - 1] if is_trace else np.nan
-                    for (i, is_trace) in zip(
-                        self.data["trace_idx"], self.data["is_trace"]
-                    )
-                ]
-            else:
-                self.data["trace"] = np.nan
-
-        # Drop all of the columns that are not needed anymore and sort
-        self.data = (
-            self.data.drop(
-                columns=["crate", "slot", "channel", "trace_idx", "is_trace"]
-            )
-            .reset_index(drop=True)
-            .sort_values(by="time_raw")
-=======
     def _hits_from_str(self, run_str: str, **kwargs) -> pl.DataFrame:
         # pull the data
         temp_scan = None
@@ -171,7 +113,6 @@ class Detector:
             temp_scan.filter(**kwargs)
             .drop([k for k, _ in kwargs.items()])
             .collect(streaming=True)
->>>>>>> polars-conversion
         )
 
     def _axis_cond(self, axis: Optional[str]) -> str:
@@ -242,16 +183,6 @@ class Detector:
     def __getitem__(self, item: str) -> pl.Series:
         return self.data.__getitem__(item)
 
-<<<<<<< HEAD
-    def __setitem__(self, item, value):
-        return self.data.__setitem__(item, value)
-
-    def __invert__(self):
-        self.coin = not self.coin
-        return self
-
-    def copy(self):
-=======
     def __setitem__(self, item: str, value: Any) -> pl.DataFrame:
         self.data = self.data.with_columns(pl.lit(value).alias(item))
         return self.data
@@ -277,7 +208,6 @@ class Detector:
         return val
 
     def copy(self) -> Self:
->>>>>>> polars-conversion
         """Copy data from detector into new detector instance.
 
         :returns: Copied instance of detector
@@ -351,17 +281,6 @@ class Detector:
             )
         return self
 
-<<<<<<< HEAD
-        # these are mostly unnecessary except for compatibility
-        # with other things that expect normal detector fields.
-        self.crate = 0
-        self.slot = 0
-        self.channel = 0
-        self.coin = True
-
-    def find_events(self, full_run_data):
-        print("Finding " + self.name + " events")
-=======
     def load(self, filename) -> Self:
         file_type = filename.split(".")[-1]
 
@@ -382,7 +301,6 @@ class Detector:
     def counts(self) -> int:
         """Returns the number of rows in the data frame"""
         return len(self.data)
->>>>>>> polars-conversion
 
     def __len__(self) -> int:
         return len(self.data)
