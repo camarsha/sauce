@@ -11,7 +11,9 @@ Contents:
     :caption: Contents:
 
     intro
-    example
+    notebooks/241Am_example.ipynb
+    notebooks/secar_fp_analysis.ipynb
+    api
 	      
 .. Indices and tables
 .. ==================

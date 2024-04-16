@@ -1,0 +1,25 @@
+* =sauce= - data frame analysis for low energy nuclear physics
+
+* Authors and Acknowledgments
+Caleb Marshall
+
+Kiana Setoodehnia for her mutual dissatisfaction for existing tools and valuable
+experience outside of the nuclear physics bubble.
+
+* Installation Instructions
+
+Clone this repository, and use pip to install.
+
+#+begin_src python
+pip install .
+#+end_src 
+
+** Suggested Additions
+ It is highly recommend that =ipython= or another full featured python REPL
+ be installed when using =sauce=. Drawing 2D gates with =sauce.gates.CreateGate2D=
+ is not supported in =jupyter= notebooks.
+
+ If you are using =emacs=, I have a [[https://github.com/camarsha/python-vterm][small repository]] to use =vterm= for an =ipython=
+ REPL (that is essentially a find a replace copy of the [[https://github.com/shg/julia-vterm.el][one for Julia]]) that works well enough for me.
+ 
+ [[https://sauce.readthedocs.io/en/latest/][Read The Docs]]

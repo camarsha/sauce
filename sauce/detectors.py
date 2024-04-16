@@ -5,20 +5,51 @@ This file helps map the data to actual detectors and group them.
 """
 
 import numpy as np
-import pandas as pd
-import tables as tb
 from matplotlib.path import Path
+from numpy.typing import NDArray
 from .run_handling import Run
-from .run_handling import global_event_sort
+from . import config
+from . import gates
+import numba as nb
+import polars as pl
+from typing import Any, Optional, Type, Sequence, Union
+from typing_extensions import Self
 
 
-def smap(f, *args):
-    # convenience function for multiprocessing
-    return f(*args)
+@nb.njit
+def referenceless_event_sort(times, build_window) -> NDArray[np.float64]:
+    """Produce an array with event number.
+
+    The event number is based on a simple build
+    window starting from the earliest event.
+    :param times:
+    :param build_window:
+    :returns:
+
+    """
+    t_i = times[0]
+    t_f = t_i + build_window
+    event = 0
+    event_number = np.empty(len(times))
+    event_number[:] = np.nan
+
+    for i in range(len(times)):
+        tc = times[i]
+
+        if tc >= t_i and tc < t_f:
+            event_number[i] = event
+        else:
+            t_i = tc
+            t_f = tc + build_window
+            event += 1
+            event_number[i] = event
+    return event_number
 
 
 class Detector:
+    """Class to hold data relevant to the specific channel."""
 
+<<<<<<< HEAD
     """
     Class to hold data relevant to the specific channel.
     """
@@ -32,6 +63,29 @@ class Detector:
         self.coin = True  # flag for coincidence
 
     def find_events(self, full_run_data):
+=======
+    def __init__(
+        self,
+        name: str,
+        primary_energy_axis: Optional[str] = None,
+        primary_time_axis: Optional[str] = None,
+    ):
+        # must initialize the dataframe first to stop recursion error
+        self.name = name
+        self.primary_energy_axis = (
+            primary_energy_axis
+            if primary_energy_axis
+            else config.default_energy_axis
+        )
+        self.primary_time_axis = (
+            primary_time_axis if primary_time_axis else config.default_time_axis
+        )
+        self.data = pl.DataFrame()
+        self._coin = True
+        self.livetime = 1.0
+
+    def find_hits(self, run_data: Union[str, Run], **kwargs) -> Self:
+>>>>>>> polars-conversion
         """
         After more usage, I think it is useful to either
         load the entire run (detailed analysis) or
@@ -42,32 +96,25 @@ class Detector:
         on whether a Run object is passed or a path to an h5 file.
         """
 
-        if isinstance(full_run_data, Run):
-            self._events_from_run(full_run_data)
-        elif isinstance(full_run_data, str):
-            self._events_from_h5(full_run_data)
+        if isinstance(run_data, Run):
+            self.data = self._hits_from_run(run_data, **kwargs)
+        elif isinstance(run_data, str):
+            self.data = self._hits_from_str(run_data, **kwargs)
         else:
-            print("Only Run objects or h5_file paths accepted!")
+            print("Only Run objects or csv_file paths accepted!")
+        self.data = self.data.sort(by=self.primary_time_axis)
+        return self
 
-    def _events_from_run(self, run_obj):
-        df = run_obj.df
-
+    def _hits_from_run(self, run_obj: Run, **kwargs) -> pl.DataFrame:
         # pull the relevant data
-        self.data = df.loc[
-            (df["crate"] == self.crate)
-            & (df["slot"] == self.slot)
-            & (df["channel"] == self.channel)
-        ]
-
-        # Drop all of the columns that are not needed anymore
-        self.data = (
-            self.data.drop(
-                columns=["crate", "slot", "channel", "trace_idx", "is_trace"]
-            )
-            .reset_index(drop=True)
-            .sort_values(by="time_raw")
+        return (
+            run_obj.data.lazy()
+            .filter(**kwargs)
+            .drop([k for k, _ in kwargs.items()])
+            .collect()
         )
 
+<<<<<<< HEAD
     def _events_from_h5(self, h5_filename):
         with tb.open_file(h5_filename, "r") as f:
             # string for the query
@@ -108,23 +155,54 @@ class Detector:
             )
             .reset_index(drop=True)
             .sort_values(by="time_raw")
+=======
+    def _hits_from_str(self, run_str: str, **kwargs) -> pl.DataFrame:
+        # pull the data
+        temp_scan = None
+        if ".csv" in run_str:
+            temp_scan = pl.scan_csv(run_str)
+        elif ".parquet" in run_str:
+            temp_scan = pl.scan_parquet(run_str)
+        elif ".feather" in run_str:
+            temp_scan = pl.scan_ipc(run_str)
+        else:
+            raise (FileNotFoundError)
+        return (
+            temp_scan.filter(**kwargs)
+            .drop([k for k, _ in kwargs.items()])
+            .collect(streaming=True)
+>>>>>>> polars-conversion
         )
 
-    def energy_calibrate(self, calibration_function):
-        self.data["energy"] = calibration_function(self.data["energy"])
+    def _axis_cond(self, axis: Optional[str]) -> str:
+        if axis == None:
+            return self.primary_energy_axis
+        else:
+            return axis
 
-    def time_calibrate(self, calibration_function):
-        self.data["time"] = calibration_function(self.data["time"])
+    def _time_axis_cond(self, axis: Optional[str]) -> str:
+        if axis == None:
+            return self.primary_time_axis
+        else:
+            return axis
 
-    def apply_threshold(self, threshold, axis="energy"):
-        self.data = self.data.loc[self.data["energy"] > threshold]
+    def apply_threshold(
+        self, threshold: float, axis: Optional[str] = None
+    ) -> Self:
+        axis = self._axis_cond(axis)
+        self.data = self.data.filter(self.data[axis] > threshold)
+        return self
 
-    def apply_cut(self, cut, axis="energy"):
-        self.data = self.data.loc[
+    def apply_cut(
+        self, cut: Sequence[float], axis: Optional[str] = None
+    ) -> Self:
+        axis = self._axis_cond(axis)
+        self.data = self.data.filter(
             (self.data[axis] > cut[0]) & (self.data[axis] < cut[1])
-        ]
+        )
+        return self
 
-    def apply_poly_cut(self, cut2d, gate_name=None):
+    def apply_poly_cut(self, cut2d: gates.Gate2D) -> Self:
         """
         Apply a 2D polygon cut to the data. Gate info is
         found in Gate2D object found in sauce.gates
@@ -135,26 +213,36 @@ class Detector:
 
         poly = Path(points, closed=True)
         results = poly.contains_points(self.data[[x_axis, y_axis]])
-        self.data = self.data[results]
+        self.data = self.data.filter(results)
+        return self
 
-    def hist(self, lower, upper, bins, axis="energy", centers=True):
+    def hist(
+        self,
+        lower: float,
+        upper: float,
+        bins: int,
+        axis: Optional[str] = None,
+        centers: bool = True,
+    ) -> tuple[NDArray[Any], NDArray[Any]]:
         """
         Return a histrogram of the given axis.
         """
+        axis = self._axis_cond(axis)
 
         counts, bin_edges = np.histogram(
             self.data[axis], bins=bins, range=(lower, upper)
         )
         # to make fitting data
         if centers:
-            centers = bin_edges[:-1]
-            return centers, counts
+            temp_centers = bin_edges[:-1]
+            return temp_centers, counts
         else:
             return counts, bin_edges
 
-    def __getitem__(self, item):
+    def __getitem__(self, item: str) -> pl.Series:
         return self.data.__getitem__(item)
 
+<<<<<<< HEAD
     def __setitem__(self, item, value):
         return self.data.__setitem__(item, value)
 
@@ -163,16 +251,43 @@ class Detector:
         return self
 
     def copy(self):
+=======
+    def __setitem__(self, item: str, value: Any) -> pl.DataFrame:
+        self.data = self.data.with_columns(pl.lit(value).alias(item))
+        return self.data
+
+    def __invert__(self) -> Self:
+        self._coin = False
+        return self
+
+    def get_coin(self) -> bool:
+        """Returns the current value of
+        coin, and then resets it to True.
+
+        If you are constructing anti-coincidences, this
+        makes sure that you will always have self.__coin = True
+        unless you have just called the ~ operator.
+
+        :returns:
+
+        """
+
+        val = self._coin
+        self._coin = True
+        return val
+
+    def copy(self) -> Self:
+>>>>>>> polars-conversion
         """Copy data from detector into new detector instance.
 
         :returns: Copied instance of detector
 
         """
-        new_det = Detector(self.crate, self.slot, self.channel, self.name)
-        new_det.data = self.data.copy(deep=True)
+        new_det = Detector(self.name)
+        new_det.data = self.data.clone()
         return new_det
 
-    def tag(self, tag, tag_name="tag"):
+    def tag(self, tag: Any, tag_name: str = "tag") -> Self:
         """Create a tag column in the dataframe.
         Examples could be run number, a simple index, or
         any other desired information.
@@ -182,48 +297,61 @@ class Detector:
         :returns:
 
         """
-        self.data[tag_name] = tag
+        self.data = self.data.with_columns(pl.lit(tag).alias(tag_name))
+        return self
 
-    def local_event(self, build_window):
+    def build_referenceless_events(
+        self, build_window: float, axis: Optional[str] = None
+    ) -> Self:
         """Assign event numbers to the detector
         based on just the detectors hits. Also
         give the multiplicity of the event
-
         :param build_window: build window in ns.
         :returns:
-
         """
-        evt_id = global_event_sort(
-            self.data["time_raw"].to_numpy(), build_window
+        time_axis = self._time_axis_cond(axis)
+        evt_id = referenceless_event_sort(
+            self.data[time_axis].to_numpy(), build_window
         )
-        self.data["local_event"] = evt_id
-        self.data["multiplicity"] = 1
-        self.data["multiplicity"] = self.data.groupby("local_event")[
-            "multiplicity"
-        ].transform("count")
+        col_name = "event_" + self.name
+        # add event id column
+        self.data = self.data.with_columns(
+            pl.lit(evt_id).cast(pl.UInt64).alias(col_name)
+        )
+        # we create a column of 1s, count them (i.e make a sum) over the groups of local events
+        # finally puttin the results in multiplicity and modifying the original data frame.
+        self.data = self.data.with_columns(
+            pl.lit(1, dtype=pl.UInt16).alias("multiplicity")
+        )  # this needs to be a separate step because pl.lit needs to turn into a column first
 
+        self.data = (
+            self.data.lazy()
+            .with_columns(
+                pl.col("multiplicity")
+                .count()
+                .over(col_name)
+                .alias("multiplicity")
+            )
+            .collect()
+        )
+        return self
 
-class DSSD(Detector):
-    def __init__(self, map_filename, side, map_seperator="\s+"):
-        """
-        Creates dictonary of Detector objects that correspond to
-        the one side of the DSSD. map_filename provides the
-        channel ids
-        """
-
-        self.data = None
-        self.side = side
-        self.dssd_dic = {}
-        self.name = "dssd_" + side
-
-        temp_file = pd.read_csv(map_filename, sep=map_seperator)
-        for index, row in temp_file.iterrows():
-            if row["side"] == side:
-                det_name = str(row["side"]) + " " + str(row["strip"])
-                self.dssd_dic[row["strip"]] = Detector(
-                    row["crate"], row["slot"], row["channel"], det_name
+    def save(self, filename, file_type: str = "parquet") -> Self:
+        if file_type == "parquet":
+            self.data.write_parquet(filename)
+        elif file_type == "feather":
+            self.data.write_ipc(filename)
+        elif file_type == "csv":
+            self.data.write_csv(filename)
+        else:
+            print(
+                "File type {} not recongnized. Try: parquet, feather, or csv.".format(
+                    file_type
                 )
+            )
+        return self
 
+<<<<<<< HEAD
         # these are mostly unnecessary except for compatibility
         # with other things that expect normal detector fields.
         self.crate = 0
@@ -233,24 +361,36 @@ class DSSD(Detector):
 
     def find_events(self, full_run_data):
         print("Finding " + self.name + " events")
+=======
+    def load(self, filename) -> Self:
+        file_type = filename.split(".")[-1]
 
-        # assign the data, results from map are in original order
-        for k, v in self.dssd_dic.items():
-            v.find_events(full_run_data)
-            v.data["strip"] = int(k)
-        self._make_data()
+        if file_type == "parquet":
+            self.data = pl.read_parquet(filename)
+        elif file_type == "feather":
+            self.data = pl.read_ipc(filename)
+        elif file_type == "csv":
+            self.data = pl.read_csv(filename)
+        else:
+            print(
+                "File type {} not recongnized. Try: parquet, feather, or csv.".format(
+                    file_type
+                )
+            )
+        return self
 
-    def _make_data(self):
-        # Make sure you clear the data frame first
-        self.data = None
+    def counts(self) -> int:
+        """Returns the number of rows in the data frame"""
+        return len(self.data)
+>>>>>>> polars-conversion
 
-        frame = [x.data for i, x in self.dssd_dic.items()]
-        self.data = pd.concat(frame, ignore_index=True).sort_values(
-            by="time_raw"
-        )
+    def __len__(self) -> int:
+        return len(self.data)
 
 
-def detector_union(name, *dets, by="time_raw"):
+def detector_union(
+    name: str, *dets: Detector, on: Optional[str] = None
+) -> Detector:
     """Union different detectors if into a
     new detector called "name"
 
@@ -258,8 +398,8 @@ def detector_union(name, *dets, by="time_raw"):
     :returns: Detector object
 
     """
-    frame = [d.data for d in dets]
-    new_det = Detector(0, 0, 0, name)
-    new_det.data = pd.concat(frame, ignore_index=True).sort_values(by=by)
-
+    if not on:
+        on = config.default_time_axis
+    new_det = Detector(name)
+    new_det.data = pl.concat([d.data.lazy() for d in dets]).sort(on).collect()
     return new_det

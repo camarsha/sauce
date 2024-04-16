@@ -1,10 +1,8 @@
 import numpy as np
-import pandas as pd
 from matplotlib.path import Path
 from matplotlib import pyplot as plt
 import matplotlib.patches as patches
 import json
-from . import detectors
 
 
 class Gate2D:
