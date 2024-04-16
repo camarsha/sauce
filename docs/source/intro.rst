@@ -7,30 +7,45 @@ for low-energy nuclear physics data. It has a few key assumptions
 about the data that you have to deal with:
 
 1) It can easily fit into your computers physical memory.
-2) It has been converted into a very specific h5 file format
-   (i.e via evth5_)
-
-   .. _evth5: https://github.com/dubiousbreakfast/evth5
-3) Data is timestamped from a digital data acquisition system.
-
-Data that meets these 3 criteria is what :code:`sauce` is targeted towards.
-So, let's start.
+2) It has been converted into csv, parquet, or feather.
 
 
-Import the package...
+The package can be install by cloning the repository and running:
+
+.. code-block:: python
+
+   pip install .
+   
+Python 3.9 through 3.12 have been tested.
+
+   
+After install the package just import it.
 
 .. code-block:: python
 
    import sauce
 
+User Configuration
+==================
+Note that upon importing :code:`sauce` it looks for a user configuration file :code`sauce_rc.py` in two places:
+
+1) The current working directory.
+2) If that is not found, it searches the users home directory.
+
+:code:`sauce` assumes some column names by default these can be changed with:
+
+.. code-block:: python
+	
+   sauce.sauce.config.set_default_energy_axis("energy")      
+   sauce.sauce.config.set_default_time_axis("time")      
+
+By default these are called, somewhat cryptically, "adc" for energy and "evt_ts" for time (it stands for event/timestamp). :code:`sauce_rc.py` can hold specific experimental information or anything else that will be needed for your particular analysis. 
+
 You can use *sauce* to write standalone scripts, but the recommended use case,
 especially for exploratory analysis is with a *read-eval-print loop* (REPL) running. One of
 the primary motivators for *sauce's* design was to break out of the *write compile run*
-workflow that makes `event building`_ and `gating`_ live separately from operations that can
-be performed on histograms (fitting, plotting, etc.). Instead of creating an event loop that sorts your
-data into histograms, you are looking at all hits in every channel in the system and correlating them however
-you wish, and at anytime you can change how you group separate hits and apply gates and cuts. My point will become
-clearer in a moment.
+workflow that makes event building and gating live separately from operations that can
+be performed on histograms (fitting, plotting, etc.).
 
 Loading Data
 ============
@@ -44,29 +59,27 @@ First create a run object:
 
 .. code-block:: python
 
-   run = sauce.Run("h5-filename.h5")
+   run = sauce.Run("filename.parquet")
 
-Usually, this will take a little bit, but even for large files (:math:`> 2` GB) load times should be less than a minute or two.
-Once you have the :code:`run` object you have all of the hits recorded by the DAQ and they have been time-ordered in a pandas DataFrame.
-If you care to look at this information, you can access it under :code:`run.df`:.
+Once you have the :code:`run` object you have all of the hits recorded by the DAQ and they have been time-ordered in a polars DataFrame.
+If you care to look at this information, you can access it under :code:`run.data`.
 
 Make A Detector
 ===============
 
-The heart of *sauce* is the :code:`sauce.Detector` class. The intention is to put just a bit of wrapping around pandas DataFrame's to make
-common tasks as painless as possible. An instance of :code:`Detector` can be histogrammed, gated on, and calibrated with its methods. Nearly
+The heart of *sauce* is the :code:`sauce.Detector` class. The intention is to put just a bit of wrapping around polars to make common tasks as painless as possible. An instance of :code:`Detector` can be histogrammed, gated on, and calibrated with its methods. Nearly
 every other class or function in *sauce* is designed to work on :code:`Detector` objects and many return new :code:`Detector` objects.
 
 So with the :code:`Run` object in hand from the last section, we can start making detectors:
 
 .. code-block:: python
 
-   run = sauce.Run("h5-filename.h5") # create an instance of Run that holds the data you care about
-   det = sauce.Detector(0, 0, 10, "my_det") # We need the crate, module, channel, and name of the detector.
-   det.find_events(run) # This pulls all of the hits in the specified crate, module, channel and puts them into det.data
+   run = sauce.Run("filename.parquet") # create an instance of Run that holds the data you care about
+   det = sauce.Detector("my_det") # Detectors need names.
+   det.find_hits(run, channel=channel) # This pulls all of the hits that have a given channel number.
 
-The underlying DataFrame can be accessed using :code:`__getitem()`, so if we want to return the energy column we would just write
-:code:`det["energy"]`. Histogramming of a :code:`Detector` can be done at anytime:
+The underlying DataFrame can be accessed using :code:`__getitem()`, so if we want to return the "adc" column we would just write
+:code:`det["adc"]`. Histogramming of a :code:`Detector` can be done at anytime:
 
 .. code-block:: python
 
@@ -75,8 +88,15 @@ The underlying DataFrame can be accessed using :code:`__getitem()`, so if we wan
    bins = 4096
    det.hist(lower, upper, bins)
 
+:code:`Detector.hist` defaults to the :code:`default_energy_axis`. Each Detector object can set its own preferred axis for methods to call:
 
+.. code-block:: python
+		
+   det.primary_energy_axis = "energy"
+   det.primary_time_axis = "time"
 
+Now :code:`Detector.hist` would histogram the "energy" column by default.
+   
 Event Building
 ==============
 
@@ -86,17 +106,17 @@ rarely the quantity of interest for an analysis. Here we assume that our data is
 *sauce* has two approaches to event building that can invoked at will:
 
 * A simple function to group a set of hits into equal length bins. A build window is started by the earliest
-  hit, regardless of channel, and all subsequent hits are grouped to that event.
+  hit, regardless of channel, and all subsequent hits are grouped to that event. This is called "referenceless" event building. 
 
-* A more complex class that creates disjoint build windows from a set of reference timestamps.
+* A more complex class that creates disjoint build windows from a set of reference timestamps. This is called "referenced" event building.
    
-It requires a mix and match of these event building techniques to cover common use cases. The simple approach is often suitable for a single physical detector that is readout through multiple channels (i.e DSSD, Gi Clover, position sensitive detectors). In *sauce* the simple approach can be invoked on a :code:`Detector` instance:
+It requires a mix and match of these event building techniques to cover common use cases. The simple approach is often suitable for a single physical detector that is readout through multiple channels (i.e DSSSD or HPGe Clover). In *sauce* the simple approach can be invoked on a :code:`Detector` instance:
 
 .. code-block:: python
 
-   det.local_events(500) # instance of detector from above, 500 is 500 ns build window.
+   det.build_referenceless_events(500) # instance of detector from above, 500 ns build window.
  
-After invoking this method, :code:`det` will have two new columns in its DataFrame: "local_event" and "multiplicity". Now each hit can be associated with an event number (starting from 0) and the multiplicity column tell you how many total hits belong to that event number (i.e fall within the 500 ns build window).
+After invoking this method, :code:`det` will have two new columns in its DataFrame: "event_my_det" and "multiplicity". Now each hit can be associated with an event number (starting from 0) and the multiplicity column tell you how many total hits belong to that event number (i.e fall within the 500 ns build window).
 
 If you have two separate physical detectors (say a charged particle detector of some kind and a gamma detector), it is often the case that one of those will have a much lower count rate and you wish to find a hit in the other detector only if the lower rate detector has fired. The :code:`sauce.EventBuilder` class is built just for this scenario:
 
@@ -118,24 +138,17 @@ The simplest way to start looking at correlations once you have an initialized e
 .. code-block:: python
 
    coin = sauce.Coincident(eb) # pass it the event builder instance
-   coin.add_detector(det1)
-   coin.add_detector(det2)
-
    det_12 = coin[det1, det2] # the __getitem__ call builds a new detector that has coincident events from det1 and det2 using the event builder
 
 For this particular case :code:`Coincident` is overkill, but with a more complex system it allows you to add as many detectors as needed, and then at will create a new detector that has only the coincidences that you are interested in. If we had two more detectors, :code:`det3` and :code:`det4`, we could do the following:
 
 .. code-block:: python
 
-   coin.add_detector(det3)
-   coin.add_detector(det4)
 
    det34 = coin[det3, det4] # events that have both det3 and det4 in them (events are still referencing timestamps from det1)
    det24 = coin[det2, det4] # events that have both det2 and det4
    det1234 = coin[det1, det2, det3, det4] # events that have every detector present
-
-		
-Gating
-======
+   det123_no_4 = coin[det1, det2, det3, ~det4] # ~ builds an anti-coincidence with det4 and the other 3 detectors.
+   
 
 

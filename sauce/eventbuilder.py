@@ -143,7 +143,7 @@ class EventBuilder:
             raise Exception(
                 "Invalid build window, high limit is less than low limit."
             )
-        if not self.timestamps:
+        if self.timestamps == []:
             raise Exception(
                 "No timestamps have been added. Call EventBuilder.add_timestamps first."
             )
@@ -190,7 +190,7 @@ class EventBuilder:
         :returns: time filtered detectors.Detector
         """
 
-        if not self.lower or not self.upper:
+        if self.lower == [] or self.upper == []:
             raise Exception(
                 "No build windows have been constructed. Call EventBuilder.create_build_windows first."
             )
