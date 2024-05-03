@@ -103,14 +103,16 @@ class EventBuilder:
     """
 
     def __init__(self):
-        self.lower = None
-        self.upper = None
+        self.lower: NDArray[Any] = np.empty(0)
+        self.upper: NDArray[Any] = np.empty(0)
         self.pre_reduced_len = 0.0
         self.reduced_len = 0.0
         self.timestamps: NDArray[Any] = np.empty(0)
         self.event_numbers = []
 
-    def add_timestamps(self, det, axis=None):
+    def add_timestamps(
+        self, det: Union[detectors.Detector, pl.Series], axis=None
+    ):
         """Add the timestamps of the given detector to
         the event builder logic.
         :param det: instance of detectors.Detector
@@ -189,7 +191,7 @@ class EventBuilder:
         :returns: time filtered detectors.Detector
         """
 
-        if self.lower == [] or self.upper == []:
+        if self.lower.shape == 0 or self.upper.shape == 0:
             raise Exception(
                 "No build windows have been constructed. Call EventBuilder.create_build_windows first."
             )
