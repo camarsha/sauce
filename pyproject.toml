@@ -15,3 +15,6 @@ dependencies = [
     "numba",
     "typing_extensions",
 ]
+
+[tool.setuptools]
+packages = ["sauce"]
