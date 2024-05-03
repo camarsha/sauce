@@ -107,7 +107,7 @@ class EventBuilder:
         self.upper = None
         self.pre_reduced_len = 0.0
         self.reduced_len = 0.0
-        self.timestamps = []
+        self.timestamps: NDArray[Any] = np.empty(0)
         self.event_numbers = []
 
     def add_timestamps(self, det, axis=None):
@@ -142,7 +142,7 @@ class EventBuilder:
             raise Exception(
                 "Invalid build window, high limit is less than low limit."
             )
-        if self.timestamps == []:
+        if self.timestamps.shape == 0:
             raise Exception(
                 "No timestamps have been added. Call EventBuilder.add_timestamps first."
             )
