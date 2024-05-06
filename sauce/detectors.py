@@ -12,7 +12,7 @@ from . import config
 from . import gates
 import numba as nb
 import polars as pl
-from typing import Any, Optional, Type, Sequence, Union
+from typing import Any, Optional, Type, Sequence, Union, List, Tuple
 from typing_extensions import Self
 
 
@@ -164,7 +164,7 @@ class Detector:
         bins: int,
         axis: Optional[str] = None,
         centers: bool = True,
-    ) -> tuple[NDArray[Any], NDArray[Any]]:
+    ) -> Tuple[NDArray[Any], NDArray[Any]]:
         """
         Return a histrogram of the given axis.
         """

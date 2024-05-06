@@ -4,12 +4,12 @@ import numpy as np
 import numba as nb
 from . import detectors
 from . import config
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, List, Tuple
 from typing_extensions import Self
 
 
 @nb.njit
-def reduce_intervals(low: NDArray[Any], high: NDArray[Any]) -> list[Any]:
+def reduce_intervals(low: NDArray[Any], high: NDArray[Any]) -> List[Any]:
     """
     Help create arrays that define
     closed, disjoint intervals.
@@ -261,7 +261,7 @@ class Coincident:
         return new_det
 
     def __getitem__(
-        self, key: Union[detectors.Detector, tuple[detectors.Detector]]
+        self, key: Union[detectors.Detector, Tuple[detectors.Detector]]
     ) -> detectors.Detector:
         """Create specific coincident detectors using a syntax of Coincidence[det]
 
