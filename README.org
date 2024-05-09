@@ -8,11 +8,15 @@ experience outside of the nuclear physics bubble.
 
 * Installation Instructions
 
-Clone this repository, and use pip to install.
+It is recommended you use at least Python 3.9, but compatibility has been tested with Python 3.8. If you computer
+does not have access to AVX, it will be necessary to install ~polars_lts_cpu~ separately from the ~sauce~ installation. 
+When you are ready to install ~sauce~, clone this repository, and use pip to install.
 
-#+begin_src python
-pip install .
+#+begin_src bash
+git clone git@github.com:camarsha/sauce.git
+python -m pip install .
 #+end_src 
+
 
 ** Suggested Additions
  It is highly recommend that =ipython= or another full featured python REPL
@@ -21,5 +25,6 @@ pip install .
 
  If you are using =emacs=, I have a [[https://github.com/camarsha/python-vterm][small repository]] to use =vterm= for an =ipython=
  REPL (that is essentially a find a replace copy of the [[https://github.com/shg/julia-vterm.el][one for Julia]]) that works well enough for me.
- 
- [[https://sauce.readthedocs.io/en/latest/][Read The Docs]]
+
+* Documentation
+Documentation can be found on [[https://sauce.readthedocs.io/en/latest/][Read The Docs]].
