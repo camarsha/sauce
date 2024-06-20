@@ -13,8 +13,9 @@ does not have access to AVX, it will be necessary to install ~polars_lts_cpu~ se
 When you are ready to install ~sauce~, clone this repository, and use pip to install.
 
 #+begin_src bash
-git clone git@github.com:camarsha/sauce.git
-python -m pip install .
+  git clone https://github.com/camarsha/sauce.git
+  cd sauce
+  python -m pip install .
 #+end_src 
 
 
