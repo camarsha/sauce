@@ -164,6 +164,7 @@ class Detector:
         bins: int,
         axis: Optional[str] = None,
         centers: bool = True,
+        norm: float = 1.0,
     ) -> Tuple[NDArray[Any], NDArray[Any]]:
         """
         Return a histrogram of the given axis.
@@ -176,9 +177,9 @@ class Detector:
         # to make fitting data
         if centers:
             temp_centers = bin_edges[:-1]
-            return temp_centers, counts
+            return temp_centers, counts / norm
         else:
-            return counts, bin_edges
+            return counts / norm, bin_edges
 
     def __getitem__(self, item: str) -> pl.Series:
         return self.data.__getitem__(item)
