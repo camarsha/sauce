@@ -29,3 +29,7 @@ When you are ready to install ~sauce~, clone this repository, and use pip to ins
 
 * Documentation
 Documentation can be found on [[https://sauce.readthedocs.io/en/latest/][Read The Docs]].
+
+* Changes
+- If you used any of the versions previous to 2.0.0 the optional ~col~ argument
+  was called ~axis~. 

@@ -52,18 +52,18 @@ class Detector:
     def __init__(
         self,
         name: str,
-        primary_energy_axis: Optional[str] = None,
-        primary_time_axis: Optional[str] = None,
+        primary_energy_col: Optional[str] = None,
+        primary_time_col: Optional[str] = None,
     ):
         # must initialize the dataframe first to stop recursion error
         self.name = name
-        self.primary_energy_axis = (
-            primary_energy_axis
-            if primary_energy_axis
-            else config.default_energy_axis
+        self.primary_energy_col = (
+            primary_energy_col
+            if primary_energy_col
+            else config.default_energy_col
         )
-        self.primary_time_axis = (
-            primary_time_axis if primary_time_axis else config.default_time_axis
+        self.primary_time_col = (
+            primary_time_col if primary_time_col else config.default_time_col
         )
         self.data = pl.DataFrame()
         self._coin = True
@@ -86,7 +86,7 @@ class Detector:
             self.data = self._hits_from_str(run_data, **kwargs)
         else:
             print("Only Run objects or csv_file paths accepted!")
-        self.data = self.data.sort(by=self.primary_time_axis)
+        self.data = self.data.sort(by=self.primary_time_col)
         return self
 
     def _hits_from_run(self, run_obj: Run, **kwargs) -> pl.DataFrame:
@@ -115,31 +115,31 @@ class Detector:
             .collect(streaming=True)
         )
 
-    def _axis_cond(self, axis: Optional[str]) -> str:
-        if axis == None:
-            return self.primary_energy_axis
+    def _col_cond(self, col: Optional[str]) -> str:
+        if col == None:
+            return self.primary_energy_col
         else:
-            return axis
+            return col
 
-    def _time_axis_cond(self, axis: Optional[str]) -> str:
-        if axis == None:
-            return self.primary_time_axis
+    def _time_col_cond(self, col: Optional[str]) -> str:
+        if col == None:
+            return self.primary_time_col
         else:
-            return axis
+            return col
 
     def apply_threshold(
-        self, threshold: float, axis: Optional[str] = None
+        self, threshold: float, col: Optional[str] = None
     ) -> Self:
-        axis = self._axis_cond(axis)
-        self.data = self.data.filter(self.data[axis] > threshold)
+        col = self._col_cond(col)
+        self.data = self.data.filter(self.data[col] > threshold)
         return self
 
     def apply_cut(
-        self, cut: Sequence[float], axis: Optional[str] = None
+        self, cut: Sequence[float], col: Optional[str] = None
     ) -> Self:
-        axis = self._axis_cond(axis)
+        col = self._col_cond(col)
         self.data = self.data.filter(
-            (self.data[axis] > cut[0]) & (self.data[axis] < cut[1])
+            (self.data[col] > cut[0]) & (self.data[col] < cut[1])
         )
         return self
 
@@ -149,11 +149,11 @@ class Detector:
         found in Gate2D object found in sauce.gates
         """
         points = cut2d.points
-        x_axis = cut2d.x_axis
-        y_axis = cut2d.y_axis
+        x_col = cut2d.x_col
+        y_col = cut2d.y_col
 
         poly = Path(points, closed=True)
-        results = poly.contains_points(self.data[[x_axis, y_axis]])
+        results = poly.contains_points(self.data[[x_col, y_col]])
         self.data = self.data.filter(results)
         return self
 
@@ -162,17 +162,17 @@ class Detector:
         lower: float,
         upper: float,
         bins: int,
-        axis: Optional[str] = None,
+        col: Optional[str] = None,
         centers: bool = True,
         norm: float = 1.0,
     ) -> Tuple[NDArray[Any], NDArray[Any]]:
         """
-        Return a histrogram of the given axis.
+        Return a histrogram of the given col.
         """
-        axis = self._axis_cond(axis)
+        col = self._col_cond(col)
 
         counts, bin_edges = np.histogram(
-            self.data[axis], bins=bins, range=(lower, upper)
+            self.data[col], bins=bins, range=(lower, upper)
         )
         # to make fitting data
         if centers:
@@ -232,7 +232,7 @@ class Detector:
         return self
 
     def build_referenceless_events(
-        self, build_window: float, axis: Optional[str] = None
+        self, build_window: float, col: Optional[str] = None
     ) -> Self:
         """Assign event numbers to the detector
         based on just the detectors hits. Also
@@ -240,9 +240,9 @@ class Detector:
         :param build_window: build window in ns.
         :returns:
         """
-        time_axis = self._time_axis_cond(axis)
+        time_col = self._time_col_cond(col)
         evt_id = referenceless_event_sort(
-            self.data[time_axis].to_numpy(), build_window
+            self.data[time_col].to_numpy(), build_window
         )
         col_name = "event_" + self.name
         # add event id column
@@ -318,7 +318,7 @@ def detector_union(
 
     """
     if not on:
-        on = config.default_time_axis
+        on = config.default_time_col
     new_det = Detector(name)
     new_det.data = pl.concat([d.data.lazy() for d in dets]).sort(on).collect()
     return new_det

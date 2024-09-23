@@ -14,12 +14,11 @@ class Scalers:
         """
         self.filename = filename
         if ".csv" in filename:
-            self.data = pl.read_csv(filename).to_pandas()  # x5 faster
+            self.data = pl.read_csv(filename).to_pandas()
         if ".parquet" in filename:
-            self.data = pl.read_parquet(filename).to_pandas()  # x15 faster
+            self.data = pl.read_parquet(filename).to_pandas()
         if ".feather" in filename:
-            self.data = pl.read_ipc(filename).to_pandas()  # x15 faster
-        self.is_sorted = False
+            self.data = pl.read_ipc(filename).to_pandas()
 
-    def channel_sum(self, channel: int) -> int:
-        return self.data.sum()[channel]
+    def sum(self) -> pl.Series:
+        return self.data.sum()

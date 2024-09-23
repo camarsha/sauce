@@ -6,9 +6,9 @@ import json
 
 
 class Gate2D:
-    def __init__(self, x_axis, y_axis):
-        self.x_axis = x_axis
-        self.y_axis = y_axis
+    def __init__(self, x_col, y_col):
+        self.x_col = x_col
+        self.y_col = y_col
         self.points = []
 
     def save(self, gate_name):
@@ -19,8 +19,8 @@ class Gate2D:
 
     def _convert_to_dic(self):
         return {
-            "x_axis": self.x_axis,
-            "y_axis": self.y_axis,
+            "x_col": self.x_col,
+            "y_col": self.y_col,
             "points": self.points,
         }
 
@@ -32,16 +32,16 @@ class Gate2D:
 
     @staticmethod
     def _convert_from_dic(dic):
-        temp = Gate2D(dic["x_axis"], dic["y_axis"])
+        temp = Gate2D(dic["x_col"], dic["y_col"])
         temp.points = dic["points"][:]
         return temp
 
 
 class CreateGate2D(Gate2D):
-    def __init__(self, det, x_axis, y_axis, **hist2d_kwargs):
-        Gate2D.__init__(self, x_axis, y_axis)
-        x = det.data[x_axis]
-        y = det.data[y_axis]
+    def __init__(self, det, x_col, y_col, **hist2d_kwargs):
+        Gate2D.__init__(self, x_col, y_col)
+        x = det.data[x_col]
+        y = det.data[y_col]
         self.fig, self.ax = plt.subplots()
         self.ax.hist2d(x, y, **hist2d_kwargs)
         self.ax.set_title("Click to set gate, press enter to finish")

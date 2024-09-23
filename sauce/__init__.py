@@ -4,8 +4,8 @@ from . import utils
 from . import gates
 from .run_handling import *
 from .scalers import Scalers
-from .config import set_default_energy_axis
-from .config import set_default_time_axis
+from .config import set_default_energy_col
+from .config import set_default_time_col
 import os
 import sys
 

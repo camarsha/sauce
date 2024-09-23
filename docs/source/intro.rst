@@ -36,8 +36,8 @@ Note that upon importing :code:`sauce` it looks for a user configuration file :c
 
 .. code-block:: python
 	
-   sauce.sauce.config.set_default_energy_axis("energy")      
-   sauce.sauce.config.set_default_time_axis("time")      
+   sauce.sauce.config.set_default_energy_col("energy")      
+   sauce.sauce.config.set_default_time_col("time")      
 
 By default these are called, somewhat cryptically, "adc" for energy and "evt_ts" for time (it stands for event/timestamp). :code:`sauce_rc.py` can hold specific experimental information or anything else that will be needed for your particular analysis. 
 
@@ -88,12 +88,12 @@ The underlying DataFrame can be accessed using :code:`__getitem()`, so if we wan
    bins = 4096
    det.hist(lower, upper, bins)
 
-:code:`Detector.hist` defaults to the :code:`default_energy_axis`. Each Detector object can set its own preferred axis for methods to call:
+:code:`Detector.hist` defaults to the :code:`default_energy_col`. Each Detector object can set its own preferred column for methods to call:
 
 .. code-block:: python
 		
-   det.primary_energy_axis = "energy"
-   det.primary_time_axis = "time"
+   det.primary_energy_col = "energy"
+   det.primary_time_col = "time"
 
 Now :code:`Detector.hist` would histogram the "energy" column by default.
    

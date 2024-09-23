@@ -11,7 +11,7 @@ class Run:
     sorts the run by time stamps
     """
 
-    def __init__(self, filename, primary_time_axis: Optional[str] = None):
+    def __init__(self, filename, primary_time_col: Optional[str] = None):
         self.filename = filename
         if ".csv" in filename:
             self.data = pl.read_csv(filename)
@@ -19,6 +19,6 @@ class Run:
             self.data = pl.read_parquet(filename)
         if ".feather" in filename:
             self.data = pl.read_ipc(filename)
-        if not primary_time_axis:
-            primary_time_axis = config.default_time_axis
-        self.data = self.data.sort(by=primary_time_axis)
+        if not primary_time_col:
+            primary_time_col = config.default_time_col
+        self.data = self.data.sort(by=primary_time_col)

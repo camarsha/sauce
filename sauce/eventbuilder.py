@@ -111,16 +111,16 @@ class EventBuilder:
         self.event_numbers = []
 
     def add_timestamps(
-        self, det: Union[detectors.Detector, pl.Series], axis=None
+        self, det: Union[detectors.Detector, pl.Series], col=None
     ):
         """Add the timestamps of the given detector to
         the event builder logic.
         :param det: instance of detectors.Detector
         :returns:
         """
-        axis = axis if axis else config.default_time_axis
+        col = col if col else config.default_time_col
         if isinstance(det, detectors.Detector):
-            timestamps = det.data[axis].to_numpy()
+            timestamps = det.data[col].to_numpy()
         elif isinstance(det, pl.Series):
             timestamps = det.to_numpy()
         else:
@@ -181,7 +181,7 @@ class EventBuilder:
         return self.livetime
 
     def assign_events_to_detector_and_drop(
-        self, det: detectors.Detector, axis: Optional[str] = None
+        self, det: detectors.Detector, col: Optional[str] = None
     ) -> detectors.Detector:
         """
         For the given detector, look at each event and see if it can be assigned
@@ -196,8 +196,8 @@ class EventBuilder:
                 "No build windows have been constructed. Call EventBuilder.create_build_windows first."
             )
 
-        axis = axis if axis else config.default_time_axis
-        det_times = det.data[axis].to_numpy()
+        col = col if col else config.default_time_col
+        det_times = det.data[col].to_numpy()
 
         before_len = len(det.data)
 
