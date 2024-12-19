@@ -2,6 +2,7 @@ from .detectors import *
 from .eventbuilder import *
 from . import utils
 from . import gates
+from .gates import Gate2D, Gate2DFromHist2D
 from .run_handling import *
 from .scalers import Scalers
 from .config import set_default_energy_col

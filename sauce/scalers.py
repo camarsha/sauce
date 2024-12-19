@@ -1,4 +1,5 @@
 import polars as pl
+from typing import Union
 
 
 class Scalers:
@@ -14,11 +15,14 @@ class Scalers:
         """
         self.filename = filename
         if ".csv" in filename:
-            self.data = pl.read_csv(filename).to_pandas()
+            self.data = pl.read_csv(filename)
         if ".parquet" in filename:
-            self.data = pl.read_parquet(filename).to_pandas()
+            self.data = pl.read_parquet(filename)
         if ".feather" in filename:
-            self.data = pl.read_ipc(filename).to_pandas()
+            self.data = pl.read_ipc(filename)
 
-    def sum(self) -> pl.Series:
-        return self.data.sum()
+    def sum(self, channel=None):
+        temp = self.data.sum().to_numpy()[0]
+        if channel is not None:
+            return temp[channel]
+        return temp
