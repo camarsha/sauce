@@ -14,6 +14,7 @@ import numba as nb
 import polars as pl
 from typing import Any, Optional, Type, Sequence, Union, List, Tuple
 from typing_extensions import Self
+from functools import singledispatchmethod
 
 
 @nb.njit
@@ -131,7 +132,7 @@ class Detector:
         self, threshold: float, col: Optional[str] = None
     ) -> Self:
         col = self._col_cond(col)
-        self.data = self.data.filter(self.data[col] > threshold)
+        self.data = self.data.filter(pl.col(col) > threshold)
         return self
 
     def apply_cut(
@@ -139,7 +140,7 @@ class Detector:
     ) -> Self:
         col = self._col_cond(col)
         self.data = self.data.filter(
-            (self.data[col] > cut[0]) & (self.data[col] < cut[1])
+            (pl.col(col) > cut[0]) & (pl.col(col) < cut[1])
         )
         return self
 
@@ -172,7 +173,7 @@ class Detector:
         col = self._col_cond(col)
 
         counts, bin_edges = np.histogram(
-            self.data[col], bins=bins, range=(lower, upper)
+            self.data.select(col), bins=bins, range=(lower, upper)
         )
         # to make fitting data
         if centers:
@@ -305,6 +306,27 @@ class Detector:
 
     def __len__(self) -> int:
         return len(self.data)
+
+    @singledispatchmethod
+    def apply_gate(self, gate):
+        """
+        Generic function to apply gates to the data contained
+        within a Detector. Dispatches on the types of gates
+        found in sauce.gates.
+        """
+        raise NotImplementedError(
+            f"I do not know how to apply a gate to type {type(gate)}!"
+        )
+
+    @apply_gate.register
+    def _apply_gate_1d(self, gate: gates.Gate1D):
+        self.apply_cut(gate.points, gate.col)
+        return self
+
+    @apply_gate.register
+    def _apply_gate_2d(self, gate: gates.Gate2D):
+        self.apply_poly_cut(gate)
+        return self
 
 
 def detector_union(

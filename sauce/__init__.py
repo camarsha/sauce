@@ -15,10 +15,16 @@ import sys
 this_directory = os.getcwd()
 user_directory = os.path.expanduser("~")
 if os.path.exists(this_directory + "/sauce_rc.py"):
-    import sauce_rc
+    print("sauce_rc.py found in directory, loading...")
+
+    import sauce_rc as rc
+
+    print("Done.")
 elif os.path.exists(user_directory + "/sauce_rc.py"):
+    print("sauce_rc.py found in home directory, loading...")
     sys.path.insert(0, user_directory)
-    import sauce_rc
+    import sauce_rc as rc
 
     # clean up the path
     sys.path.remove(user_directory)
+    print("Done.")
