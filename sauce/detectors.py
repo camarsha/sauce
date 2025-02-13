@@ -328,6 +328,39 @@ class Detector:
         self.apply_poly_cut(gate)
         return self
 
+    def with_columns(self, *exprs, **named_exprs):
+        self.data = self.data.with_columns(*exprs, **named_exprs)
+        return self
+
+    def filter(self, *predicates, **constraints):
+        self.data = self.data.filter(*predicates, **constraints)
+        return self
+
+    def sort(
+        self,
+        by,
+        *more_by,
+        descending=False,
+        nulls_last=False,
+        multithreaded=True,
+        maintain_order=False,
+    ):
+        self.data = self.data.sort(
+            by,
+            *more_by,
+            descending=descending,
+            nulls_last=nulls_last,
+            multithreaded=multithreaded,
+            maintain_order=maintain_order,
+        )
+        return self
+
+    def unique(self, subset=None, *, keep="any", maintain_order=False):
+        self.data = self.data.unique(
+            subset=subset, keep=keep, maintain_order=maintain_order
+        )
+        return self
+
 
 def detector_union(
     name: str, *dets: Detector, on: Optional[str] = None
