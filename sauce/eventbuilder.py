@@ -233,28 +233,57 @@ class Coincident:
         )
         self.eb: EventBuilder = eb
 
+    def _column_name_check(self, det, det_name, col):
+        """
+        Checks if a column need to be renamed or not.
+        """
+        if col == "event":
+            return col
+        for name in det._parent_detectors:
+            if name in col:
+                return col
+        return col + "_" + det_name
+
+    def _shared_columns(self, det1, det2):
+        return [col for col in det1.data.columns if col in det2.data.columns]
+
     def create_coincidence(
         self, *dets: detectors.Detector, coincident_detector_name=None
     ) -> detectors.Detector:
         if not coincident_detector_name:
             coincident_detector_name = "_".join([det.name for det in dets])
         new_det = detectors.Detector(coincident_detector_name)
+        # in order properly name columns we need to track the root detectors
+        # that have not undergone event building
+        for det in dets:
+            if det._parent_detectors:
+                new_det._parent_detectors += det._parent_detectors
+            else:
+                new_det._parent_detectors.append(det.name)
         # now we do a inner merge on all the data
         new_det.data = self.data.clone()
         for det in dets:
-            temp_det = self.eb.assign_events_to_detector_and_drop(det.copy())
+            # The list comprehension takes care of the case that
+            # happens when a detector is passed that has already had
+            # its columns renamed from event building.
+            temp_det = self.eb.assign_events_to_detector_and_drop(
+                det.copy(),
+                [x for x in det.data.columns if config.default_time_col in x][
+                    0
+                ],
+            )
             temp_det.data = temp_det.data.rename(
                 {
-                    col: col + "_" + temp_det.name
+                    col: self._column_name_check(new_det, temp_det.name, col)
                     for col in temp_det.data.columns
-                    if col != "event"
                 }
             )
             # we do inner joins unless we asked for anti-coincidence
             how_type = "anti" if not det.get_coin() else "inner"
+
             new_det.data = new_det.data.join(
                 temp_det.data,
-                on="event",
+                on=self._shared_columns(new_det, temp_det),
                 how=how_type,
             ).sort(by="event")
 

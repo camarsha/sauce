@@ -68,6 +68,7 @@ class Detector:
         )
         self.data = pl.DataFrame()
         self._coin = True
+        self._parent_detectors = []  # will be used by the event builder
         self.livetime = 1.0
 
     def find_hits(self, run_data: Union[str, Run], **kwargs) -> Self:
