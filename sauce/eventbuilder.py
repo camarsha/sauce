@@ -301,3 +301,15 @@ class Coincident:
         if isinstance(key, tuple):
             return self.create_coincidence(*key)
         return self.create_coincidence(key)
+
+
+def make_coincidence(dets, lower: float, upper: float):
+    eb = EventBuilder()
+    if isinstance(dets, list):
+        for det in dets:
+            eb.add_timestamps(det)
+    else:
+        eb.add_timestamps(dets)
+    eb.create_build_windows(lower, upper)
+    coin = Coincident(eb)
+    return coin
