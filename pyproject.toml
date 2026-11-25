@@ -7,10 +7,10 @@ name = "sauce"
 authors = [
      {name = "Caleb Marshall", email="camarsha@unc.edu"}
 ]
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
     "numpy",
-    "polars > 0.19",
+    "polars > 2.0",
     "matplotlib"    ,
     "numba",
     "scipy",

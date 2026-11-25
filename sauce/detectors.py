@@ -114,7 +114,7 @@ class Detector:
         return (
             temp_scan.filter(**kwargs)
             .drop([k for k, _ in kwargs.items()])
-            .collect(streaming=True)
+            .collect(engine="streaming")
         )
 
     def _col_cond(self, col: Optional[str]) -> str:
